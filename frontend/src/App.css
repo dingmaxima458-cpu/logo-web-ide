@@ -1,0 +1,81 @@
+.App {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background-color: #1e1e1e;
+  color: #d4d4d4;
+}
+
+.App-header {
+  background-color: #252526;
+  padding: 1rem 2rem;
+  border-bottom: 1px solid #3e3e42;
+  text-align: center;
+}
+
+.App-header h1 {
+  font-size: 2rem;
+  margin-bottom: 0.5rem;
+  color: #4ec9b0;
+}
+
+.App-header p {
+  color: #858585;
+  font-size: 0.9rem;
+}
+
+.App-container {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+.App-editor-panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid #3e3e42;
+  min-width: 400px;
+}
+
+.App-canvas-panel {
+  flex: 1;
+  display: flex;
+  background-color: #1e1e1e;
+  min-width: 400px;
+}
+
+.error-message {
+  background-color: #3a1d1d;
+  color: #f48771;
+  padding: 0.75rem 1rem;
+  margin: 0.5rem;
+  border-left: 3px solid #f48771;
+  border-radius: 4px;
+  font-family: 'Courier New', monospace;
+  font-size: 0.9rem;
+}
+
+.output-message {
+  background-color: #1e3a1e;
+  color: #89d185;
+  padding: 0.75rem 1rem;
+  margin: 0.5rem;
+  border-left: 3px solid #89d185;
+  border-radius: 4px;
+  font-family: 'Courier New', monospace;
+  font-size: 0.9rem;
+}
+
+@media (max-width: 768px) {
+  .App-container {
+    flex-direction: column;
+  }
+  
+  .App-editor-panel,
+  .App-canvas-panel {
+    min-width: 100%;
+    min-height: 400px;
+  }
+}
+

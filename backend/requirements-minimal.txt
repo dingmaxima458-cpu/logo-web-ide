@@ -1,0 +1,12 @@
+# Minimal requirements - works without logopy (uses built-in parser)
+fastapi>=0.104.1
+uvicorn[standard]>=0.24.0
+python-multipart>=0.0.6
+websockets>=12.0
+pydantic>=2.9.0  # Updated for Python 3.13 compatibility
+python-dotenv>=1.0.0
+
+# Note: logopy is optional - the built-in parser supports:
+# forward, back, right, left, penup, pendown, home
+# To install logopy (optional): pip install logopy>=0.0.4
+

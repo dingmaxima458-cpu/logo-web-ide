@@ -1,0 +1,42 @@
+.controls-container {
+  display: flex;
+  gap: 0.5rem;
+  padding: 1rem;
+  background-color: #252526;
+  border-top: 1px solid #3e3e42;
+}
+
+.control-button {
+  padding: 0.6rem 1.2rem;
+  border: none;
+  border-radius: 4px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-family: inherit;
+}
+
+.control-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.control-button-primary {
+  background-color: #0e639c;
+  color: white;
+}
+
+.control-button-primary:hover:not(:disabled) {
+  background-color: #1177bb;
+}
+
+.control-button-secondary {
+  background-color: #3e3e42;
+  color: #cccccc;
+}
+
+.control-button-secondary:hover:not(:disabled) {
+  background-color: #4e4e52;
+}
+
