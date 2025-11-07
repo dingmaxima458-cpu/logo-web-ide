@@ -1,0 +1,10 @@
+{
+  "name": "logo-web-ide",
+  "version": "1.0.0",
+  "description": "Modern Logo Programming Language IDE and Playground",
+  "private": true,
+  "dependencies": {
+    "logo": "^0.2.0"
+  },
+  "devDependencies": {}
+}

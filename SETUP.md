@@ -4,50 +4,28 @@
 
 ### Prerequisites
 
-- **Python 3.8-3.12 recommended** (Python 3.13 may have compatibility issues with some packages)
-- If you're using Python 3.13 and encounter build errors, consider using Python 3.11 or 3.12
+- **Node.js 16+** (check with `node --version`)
+- npm (comes with Node.js)
 
 ### 1. Backend Setup
 
 ```bash
 cd backend
-python -m venv venv
-
-# On macOS/Linux:
-source venv/bin/activate
-
-# On Windows:
-venv\Scripts\activate
-
-# Upgrade pip first (helps with Python 3.13 compatibility)
-pip install --upgrade pip
-
-# Option 1: Install with logopy (optional, may fail if package unavailable)
-pip install -r requirements.txt
-
-# Option 2: Install minimal requirements (works without logopy)
-pip install -r requirements-minimal.txt
+npm install
 ```
 
-**Note about Logopy**: The `logopy` package is optional. The backend includes a working basic Logo parser that supports common commands (no installation needed):
-- `forward` / `fd` - Move forward
-- `back` / `bk` - Move backward
-- `right` / `rt` - Turn right
-- `left` / `lt` - Turn left
-- `penup` / `pu` - Lift pen
-- `pendown` / `pd` - Lower pen
-- `home` - Return to origin
-
-If you want to use a full Logo interpreter, you may need to:
-1. Check if `logopy` is available: `pip install logopy`
-2. Or use `PyLogo` from source: https://pylogo.sourceforge.net/
-3. Or implement a more complete parser based on your needs
+The backend uses:
+- **Express** - Web framework
+- **`logo` npm package** - Logo interpreter (installed automatically)
+- **WebSocket (ws)** - Real-time communication
 
 ### 2. Start Backend
 
 ```bash
 cd backend
-uvicorn app.main:app --reload --port 8000
+npm start
+# or for development with auto-reload:
+npm run dev
 ```
 
 The backend will be available at `http://localhost:8000`
@@ -56,23 +34,7 @@ The backend will be available at `http://localhost:8000`
 
 ```bash
 cd frontend
-
-# Clean install (if migrating from Create React App)
-rm -rf node_modules package-lock.json build
-npm cache clean --force
-
-# Install dependencies
 npm install
-```
-
-**Note**: The project now uses **Vite** (modern build tool) instead of Create React App:
-- Much faster dev server and HMR
-- TypeScript 5.3.3 support
-- Better performance and developer experience
-
-### 4. Start Frontend
-
-```bash
 npm run dev
 # or simply
 npm start
@@ -97,6 +59,12 @@ forward 100
 
 3. Click "Run" to see the turtle draw a square!
 
+Or try a REPEAT loop:
+
+```
+REPEAT 4 [FD 100 RT 90]
+```
+
 ## Architecture Overview
 
 ### Frontend (React + TypeScript)
@@ -105,24 +73,22 @@ forward 100
 - **Controls**: Run, Clear, and Reset buttons
 - **API Service**: Axios-based HTTP client for backend communication
 
-### Backend (Python + FastAPI)
-- **FastAPI**: Modern async web framework
-- **LogoInterpreter**: Wrapper around Logo interpreter (Logopy or fallback parser)
+### Backend (Node.js + Express)
+- **Express**: Web framework for REST API and WebSocket
+- **Logo Package**: Direct integration of `logo` npm package
 - **REST API**: `/api/execute` endpoint for code execution
 - **WebSocket**: `/ws/execute` endpoint for real-time execution streaming
 
 ## Development Notes
 
-### Adding More Logo Commands
+### Logo Interpreter
 
-To extend the basic parser, edit `backend/app/interpreter/logo_interpreter.py` and add new command handlers in the `_parse_basic_logo` method.
+The Logo interpreter uses the `logo` npm package directly:
+- Logo code is parsed and executed by the `logo` package
+- Commands are converted to turtle graphics format
+- JSON commands are returned to the frontend for rendering
 
-### Integrating Full Logo Interpreter
-
-If you find a working Logo interpreter (like PyLogo), you can integrate it by:
-1. Installing the package
-2. Updating `LogoInterpreter.__init__()` to use it
-3. Implementing `_extract_commands_from_logopy()` to convert interpreter output to drawing commands
+To modify Logo command handling, edit `backend/server.js` in the `convertLogoCommands` function.
 
 ### Customizing the UI
 
@@ -132,35 +98,11 @@ If you find a working Logo interpreter (like PyLogo), you can integrate it by:
 
 ## Troubleshooting
 
-### Python 3.13 Build Errors (pydantic-core)
-
-If you encounter build errors with `pydantic-core` on Python 3.13:
-
-**Solution 1: Use Python 3.11 or 3.12 (Recommended)**
-```bash
-# Create venv with specific Python version
-python3.12 -m venv venv  # or python3.11
-source venv/bin/activate
-pip install -r requirements-minimal.txt
-```
-
-**Solution 2: Install pre-built wheels**
-```bash
-pip install --upgrade pip
-pip install --only-binary :all: -r requirements-minimal.txt
-```
-
-**Solution 3: Use latest pydantic**
-```bash
-pip install "pydantic>=2.9.0" --upgrade
-pip install -r requirements-minimal.txt
-```
-
 ### Backend won't start
-- Ensure Python 3.8-3.12 is installed (3.13 may have issues)
-- Check that all dependencies are installed: `pip install -r requirements-minimal.txt`
+- Ensure Node.js 16+ is installed: `node --version`
+- Check that all dependencies are installed: `npm install`
 - Verify port 8000 is not in use
-- Try upgrading pip: `pip install --upgrade pip`
+- Check for errors in the console
 
 ### Frontend won't start / npm install errors
 
@@ -189,12 +131,12 @@ yarn install
 
 ### Code execution fails
 - Check browser console for errors
-- Verify backend is running and accessible
+- Verify backend is running and accessible: `curl http://localhost:8000/api/health`
 - Check backend logs for error messages
-- Ensure CORS is properly configured
+- Ensure CORS is properly configured (should work by default)
 
 ### Turtle graphics not showing
 - Check browser console for canvas errors
 - Verify commands are being received from backend
 - Try clearing the canvas and running again
-
+- Check that Logo code syntax is correct (use uppercase: FORWARD, RIGHT, etc.)

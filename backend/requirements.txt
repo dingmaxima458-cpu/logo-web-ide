@@ -1,8 +1,0 @@
-fastapi>=0.104.1
-uvicorn[standard]>=0.24.0
-python-multipart>=0.0.6
-websockets>=12.0
-logopy>=0.0.4  # Optional: Logo interpreter (fallback parser works without it)
-pydantic>=2.9.0  # Updated for Python 3.13 compatibility
-python-dotenv>=1.0.0
-

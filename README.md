@@ -1,48 +1,24 @@
 # Logo Web IDE - Modern Logo Programming Language Playground
 
-A modern web-based IDE and visualization playground for the classic Logo programming language (like Terrapin Logo), featuring a React frontend and Python backend architecture.
+A modern web-based IDE and visualization playground for the classic Logo programming language (like Terrapin Logo), featuring a React frontend and Node.js backend architecture.
 
-## Research Findings
+## Logo Interpreter
 
-### Available Logo Interpreters
+The backend uses the **`logo` npm package** - a well-maintained, comprehensive Logo interpreter written in JavaScript. This approach provides:
 
-After careful research, we've identified several Logo interpreter options:
+✅ **Packaged Solution** - Uses existing, tested Logo interpreter  
+✅ **Comprehensive Logo Support** - Full Logo language implementation  
+✅ **Simple Architecture** - Pure Node.js, no subprocess overhead  
+✅ **Wide Language Coverage** - Supports all standard Logo commands  
+✅ **Procedure & Loop Support** - Handles `TO ... END` procedures and `REPEAT` loops  
 
-1. **Logopy** (Optional - Fallback parser included)
-   - Python-based implementation
-   - Supports both TK and SVG turtle graphics backends
-   - Available on PyPI: `pip install logopy` (versions 0.0.1-0.0.4)
-   - Well-suited for web integration with SVG support
-   - **Note**: The backend includes a working fallback parser, so logopy is optional
-   - Source: https://pypi.org/project/logopy/
-
-2. **PyLogo**
-   - Python-based Logo interpreter
-   - Closely follows UCBLogo implementation
-   - Allows integration with Python environments
-   - Source: https://pylogo.sourceforge.net/
-
-3. **PyoLogo**
-   - Built on Python
-   - Simpler subset of Logo primitives
-   - Less feature-complete than other options
-
-### Architecture Decision
-
-The backend includes a **built-in Logo parser** that works immediately without any external dependencies. This parser supports common Logo commands:
-- `forward` / `fd` - Move turtle forward
-- `back` / `bk` - Move turtle backward  
-- `right` / `rt` - Turn turtle right
-- `left` / `lt` - Turn turtle left
-- `penup` / `pu` - Lift pen (stop drawing)
-- `pendown` / `pd` - Lower pen (start drawing)
-- `home` - Return turtle to origin
-
-**Logopy** is optional and can be installed for extended Logo support:
-- Active PyPI package (versions 0.0.1-0.0.4 available)
-- Native SVG support (perfect for web graphics)
-- Python-based (matches our backend choice)
-- Flexible turtle graphics backend
+**Supported Logo Commands:**
+All standard Logo commands including:
+- **Movement**: `FORWARD`/`FD`, `BACK`/`BK`
+- **Rotation**: `RIGHT`/`RT`, `LEFT`/`LT`
+- **Control Flow**: `REPEAT`, `IF`, `WHILE`
+- **Procedures**: `TO name ... END` definitions
+- **And many more!**
 
 ## Project Structure
 
@@ -57,12 +33,9 @@ logoWeb/
 │   │   ├── services/          # API communication
 │   │   └── App.tsx
 │   └── package.json
-├── backend/           # Python Flask/FastAPI backend
-│   ├── app/
-│   │   ├── api/              # API routes
-│   │   ├── interpreter/      # Logo interpreter wrapper
-│   │   └── main.py           # FastAPI application
-│   └── requirements.txt
+├── backend/           # Node.js/Express backend
+│   ├── server.js              # Express server with Logo interpreter
+│   └── package.json
 └── README.md
 ```
 
@@ -70,35 +43,34 @@ logoWeb/
 
 ### Frontend
 - **React 18** with TypeScript
-- **Vite** - Modern, fast build tool (replaces Create React App)
+- **Vite** - Modern, fast build tool
 - **Monaco Editor** (VS Code editor) for code editing
 - **HTML5 Canvas** for turtle graphics visualization
 - **Axios** for API communication
 - **WebSocket** support for real-time execution
 
 ### Backend
-- **Python 3.8+**
-- **FastAPI** (modern, fast, async Python web framework)
-- **Logopy** (Logo interpreter)
+- **Node.js** with Express
+- **`logo` npm package** - Comprehensive Logo interpreter
 - **WebSocket** support for real-time communication
-- **Uvicorn** (ASGI server)
 
 ## Getting Started
 
 ### Prerequisites
-- Node.js 16+ and npm/yarn
-- Python 3.8-3.12 (Python 3.13 may have compatibility issues - see troubleshooting)
-- pip
+- **Node.js 16+** and npm
+- That's it! No Python needed.
 
 ### Backend Setup
 
 ```bash
 cd backend
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-pip install -r requirements.txt
-uvicorn app.main:app --reload --port 8000
+npm install
+npm start
+# or for development with auto-reload:
+npm run dev
 ```
+
+The backend will run on `http://localhost:8000`
 
 ### Frontend Setup
 
@@ -107,14 +79,8 @@ cd frontend
 npm install
 npm run dev
 # or
-npm start  # (alias for npm run dev)
+npm start
 ```
-
-**Note**: The frontend now uses **Vite** instead of Create React App for:
-- ⚡ Lightning-fast dev server startup
-- 🔥 Instant Hot Module Replacement (HMR)
-- 📦 Faster production builds
-- 🎯 Modern tooling and better DX
 
 The frontend will run on `http://localhost:3000` and the backend on `http://localhost:8000`.
 
@@ -138,4 +104,3 @@ The frontend will run on `http://localhost:3000` and the backend on `http://loca
 ## License
 
 MIT
-
