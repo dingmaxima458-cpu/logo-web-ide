@@ -60,8 +60,28 @@ logoWeb/
 - **Node.js 16+** and npm
 - That's it! No Python needed.
 
-### Backend Setup
+### Quick Start (Recommended)
 
+```bash
+# Install all dependencies (root, backend, frontend)
+npm run install:all
+
+# Start both backend and frontend together
+npm start
+
+# Or for development with auto-reload:
+npm run dev
+```
+
+This will start:
+- **Backend** on `http://localhost:8000`
+- **Frontend** on `http://localhost:3000`
+
+### Manual Setup (Alternative)
+
+If you prefer to run servers separately:
+
+**Backend:**
 ```bash
 cd backend
 npm install
@@ -70,10 +90,7 @@ npm start
 npm run dev
 ```
 
-The backend will run on `http://localhost:8000`
-
-### Frontend Setup
-
+**Frontend:**
 ```bash
 cd frontend
 npm install
@@ -81,8 +98,6 @@ npm run dev
 # or
 npm start
 ```
-
-The frontend will run on `http://localhost:3000` and the backend on `http://localhost:8000`.
 
 ## Features
 

@@ -7,11 +7,32 @@
 - **Node.js 16+** (check with `node --version`)
 - npm (comes with Node.js)
 
-### 1. Backend Setup
+### Option 1: Start Everything Together (Recommended)
 
+```bash
+# Install all dependencies (root, backend, frontend)
+npm run install:all
+
+# Start both servers together
+npm start
+
+# Or for development with auto-reload:
+npm run dev
+```
+
+This starts:
+- **Backend** on `http://localhost:8000`
+- **Frontend** on `http://localhost:3000`
+
+### Option 2: Manual Setup (Run Servers Separately)
+
+**1. Backend Setup:**
 ```bash
 cd backend
 npm install
+npm start
+# or for development with auto-reload:
+npm run dev
 ```
 
 The backend uses:
@@ -19,19 +40,9 @@ The backend uses:
 - **`logo` npm package** - Logo interpreter (installed automatically)
 - **WebSocket (ws)** - Real-time communication
 
-### 2. Start Backend
-
-```bash
-cd backend
-npm start
-# or for development with auto-reload:
-npm run dev
-```
-
 The backend will be available at `http://localhost:8000`
 
-### 3. Frontend Setup
-
+**2. Frontend Setup:**
 ```bash
 cd frontend
 npm install
