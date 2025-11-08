@@ -23,8 +23,41 @@ const app = express();
 const PORT = process.env.PORT || 8000;
 
 // Middleware
+// CORS configuration - allow EC2 and localhost
+const allowedOrigins = [
+  'http://localhost:3000',
+  'http://localhost:5173',
+  // Allow EC2 public DNS (with and without port)
+  /^https?:\/\/ec2-.*\.compute\.amazonaws\.com(:.*)?$/,
+  /^https?:\/\/.*\.amazonaws\.com(:.*)?$/,
+  // Allow any origin in development (you may want to restrict in production)
+  ...(process.env.NODE_ENV !== 'production' ? [true] : [])
+];
+
 app.use(cors({
-  origin: ['http://localhost:3000', 'http://localhost:5173'],
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    
+    // Check if origin matches allowed patterns
+    const isAllowed = allowedOrigins.some(allowed => {
+      if (typeof allowed === 'boolean' && allowed) return true;
+      if (typeof allowed === 'string') return origin === allowed;
+      if (allowed instanceof RegExp) return allowed.test(origin);
+      return false;
+    });
+    
+    if (isAllowed) {
+      callback(null, true);
+    } else {
+      // In development, allow all origins
+      if (process.env.NODE_ENV !== 'production') {
+        callback(null, true);
+      } else {
+        callback(new Error('Not allowed by CORS'));
+      }
+    }
+  },
   credentials: true
 }));
 app.use(express.json());
