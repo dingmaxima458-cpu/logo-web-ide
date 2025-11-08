@@ -3,6 +3,7 @@ import './App.css';
 import CodeEditor from './components/CodeEditor/CodeEditor';
 import TurtleCanvas from './components/Canvas/TurtleCanvas';
 import Controls from './components/Controls/Controls';
+import Console, { ConsoleMessage } from './components/Console/Console';
 import { executeCode } from './services/api';
 
 interface TurtleCommand {
@@ -37,25 +38,49 @@ forward 100
 `);
   const [commands, setCommands] = useState<TurtleCommand[]>([]);
   const [isRunning, setIsRunning] = useState(false);
-  const [output, setOutput] = useState('');
-  const [error, setError] = useState('');
+  const [consoleMessages, setConsoleMessages] = useState<ConsoleMessage[]>([]);
 
   const handleRun = async () => {
     setIsRunning(true);
-    setError('');
-    setOutput('');
     setCommands([]);
+    setConsoleMessages([]);
 
     try {
       const response = await executeCode(code, true);
       if (response.success) {
         setCommands(response.commands);
-        setOutput(response.output);
+        
+        // Add success message if there's output
+        if (response.output && response.output.trim()) {
+          setConsoleMessages(prev => [...prev, {
+            type: 'output',
+            message: response.output,
+            timestamp: new Date()
+          }]);
+        } else if (response.commands.length > 0) {
+          setConsoleMessages(prev => [...prev, {
+            type: 'info',
+            message: `✓ Execution successful. Generated ${response.commands.length} turtle command(s).`,
+            timestamp: new Date()
+          }]);
+        }
       } else {
-        setError(response.error || 'Execution failed');
+        // Add error message to console
+        const errorMsg = response.error || 'Execution failed';
+        setConsoleMessages(prev => [...prev, {
+          type: 'error',
+          message: errorMsg,
+          timestamp: new Date()
+        }]);
       }
     } catch (err: any) {
-      setError(err.message || 'Failed to execute code');
+      // Add error message to console
+      const errorMsg = err.response?.data?.error || err.message || 'Failed to execute code';
+      setConsoleMessages(prev => [...prev, {
+        type: 'error',
+        message: errorMsg,
+        timestamp: new Date()
+      }]);
     } finally {
       setIsRunning(false);
     }
@@ -63,8 +88,7 @@ forward 100
 
   const handleClear = () => {
     setCommands([]);
-    setOutput('');
-    setError('');
+    setConsoleMessages([]);
   };
 
   const handleReset = () => {
@@ -96,16 +120,10 @@ forward 50
             onReset={handleReset}
             isRunning={isRunning}
           />
-          {error && (
-            <div className="error-message">
-              <strong>Error:</strong> {error}
-            </div>
-          )}
-          {output && (
-            <div className="output-message">
-              <strong>Output:</strong> {output}
-            </div>
-          )}
+          <Console 
+            messages={consoleMessages}
+            onClear={handleClear}
+          />
         </div>
         
         <div className="App-canvas-panel">

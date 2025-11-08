@@ -39,9 +39,14 @@ export const executeCode = async (
     );
     return response.data;
   } catch (error: any) {
-    throw new Error(
-      error.response?.data?.error || error.message || 'Failed to execute code'
-    );
+    // If the request fails, return an error response object instead of throwing
+    // This allows the App to handle both success and error responses consistently
+    return {
+      success: false,
+      error: error.response?.data?.error || error.message || 'Failed to execute code',
+      commands: [],
+      output: ''
+    };
   }
 };
 

@@ -9,6 +9,9 @@ frontend/dist/
 frontend/build/
 backend/dist/
 
+# File storage
+backend/files/
+
 # Python (for future use if needed)
 venv/
 env/

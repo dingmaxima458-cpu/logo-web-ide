@@ -8,6 +8,7 @@ import cors from 'cors';
 import { WebSocketServer } from 'ws';
 import { createServer } from 'http';
 import { createRequire } from 'module';
+import * as fileManager from './fileManager.js';
 
 // logo package uses CommonJS, so we need to use createRequire
 const require = createRequire(import.meta.url);
@@ -101,25 +102,133 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-// Execute Logo code endpoint
+// File management endpoints
+app.post('/api/files', async (req, res) => {
+  try {
+    const { filename, content } = req.body;
+    if (!filename || !content) {
+      return res.status(400).json({ error: 'filename and content are required' });
+    }
+    const file = await fileManager.saveFile(filename, content);
+    res.json(file);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get('/api/files', async (req, res) => {
+  try {
+    const files = await fileManager.listFiles();
+    res.json(files);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get('/api/files/:id', async (req, res) => {
+  try {
+    const file = await fileManager.loadFile(req.params.id);
+    res.json(file);
+  } catch (error) {
+    res.status(404).json({ error: error.message });
+  }
+});
+
+app.put('/api/files/:id', async (req, res) => {
+  try {
+    const { content } = req.body;
+    if (!content) {
+      return res.status(400).json({ error: 'content is required' });
+    }
+    const file = await fileManager.updateFile(req.params.id, content);
+    res.json(file);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.delete('/api/files/:id', async (req, res) => {
+  try {
+    await fileManager.deleteFile(req.params.id);
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Execute Logo code endpoint - supports both fileId and direct code
 app.post('/api/execute', async (req, res) => {
   try {
-    const { code, reset = true } = req.body;
-
-    if (!code || typeof code !== 'string') {
+    const { fileId, code, reset = true } = req.body;
+    
+    let codeToExecute = code;
+    let fileInfo = null;
+    
+    // If fileId is provided, load the file
+    if (fileId) {
+      fileInfo = await fileManager.loadFile(fileId);
+      codeToExecute = fileInfo.content;
+    }
+    
+    // Fallback: code must be provided if no fileId
+    if (!codeToExecute || typeof codeToExecute !== 'string') {
       return res.status(400).json({
         success: false,
-        error: 'Code is required and must be a string',
+        error: 'Either fileId or code must be provided',
         commands: []
       });
     }
 
     // Convert Logo code using the logo package
-    logo.convert(code, (err, logoCommands) => {
+    logo.convert(codeToExecute, (err, logoCommands) => {
       if (err) {
+        // Get the raw error message from the compiler
+        let errorMessage = err.toString();
+        
+        // Try to find line number information
+        // Use file's line numbers if available, otherwise use code string
+        const codeLines = codeToExecute.split('\n');
+        let lineNumber = null;
+        
+        // For "Don't know how to X" errors, find which line contains X
+        const unknownCmdMatch = errorMessage.match(/Don't know how to (\w+)/i);
+        if (unknownCmdMatch) {
+          const unknownCmd = unknownCmdMatch[1];
+          // Search for the command in the code (case-insensitive)
+          for (let i = 0; i < codeLines.length; i++) {
+            const line = codeLines[i].toUpperCase();
+            // Check if line contains the unknown command (as a word, not substring)
+            if (new RegExp(`\\b${unknownCmd}\\b`, 'i').test(codeLines[i])) {
+              lineNumber = i + 1; // Line numbers are 1-based
+              break;
+            }
+          }
+        }
+        
+        // For syntax errors like "Expected ']'", try to find the problematic line
+        if (errorMessage.includes("Expected ']'") && lineNumber === null) {
+          // Find the last line with an opening bracket
+          for (let i = codeLines.length - 1; i >= 0; i--) {
+            if (codeLines[i].includes('[') && !codeLines[i].includes(']')) {
+              lineNumber = i + 1;
+              break;
+            }
+          }
+        }
+        
+        // For "Unexpected end" errors, it's likely the last line
+        if (errorMessage.includes("Unexpected end") && lineNumber === null) {
+          lineNumber = codeLines.length;
+        }
+        
+        // Prepend line number to error message if found
+        if (lineNumber !== null) {
+          errorMessage = `Error in line ${lineNumber}: ${errorMessage}`;
+        }
+        
         return res.json({
           success: false,
-          error: err.toString(),
+          error: errorMessage,
           commands: [],
           output: ''
         });
@@ -168,9 +277,52 @@ wss.on('connection', (ws) => {
       // Convert Logo code
       logo.convert(code, (err, logoCommands) => {
         if (err) {
+          // Get the raw error message from the compiler
+          let errorMessage = err.toString();
+          
+          // Try to find line number information
+          const codeLines = code.split('\n');
+          let lineNumber = null;
+          
+          // For "Don't know how to X" errors, find which line contains X
+          const unknownCmdMatch = errorMessage.match(/Don't know how to (\w+)/i);
+          if (unknownCmdMatch) {
+            const unknownCmd = unknownCmdMatch[1];
+            // Search for the command in the code (case-insensitive)
+            for (let i = 0; i < codeLines.length; i++) {
+              const line = codeLines[i].toUpperCase();
+              // Check if line contains the unknown command (as a word, not substring)
+              if (new RegExp(`\\b${unknownCmd}\\b`, 'i').test(codeLines[i])) {
+                lineNumber = i + 1; // Line numbers are 1-based
+                break;
+              }
+            }
+          }
+          
+          // For syntax errors like "Expected ']'", try to find the problematic line
+          if (errorMessage.includes("Expected ']'") && lineNumber === null) {
+            // Find the last line with an opening bracket
+            for (let i = codeLines.length - 1; i >= 0; i--) {
+              if (codeLines[i].includes('[') && !codeLines[i].includes(']')) {
+                lineNumber = i + 1;
+                break;
+              }
+            }
+          }
+          
+          // For "Unexpected end" errors, it's likely the last line
+          if (errorMessage.includes("Unexpected end") && lineNumber === null) {
+            lineNumber = codeLines.length;
+          }
+          
+          // Prepend line number to error message if found
+          if (lineNumber !== null) {
+            errorMessage = `Error in line ${lineNumber}: ${errorMessage}`;
+          }
+          
           ws.send(JSON.stringify({
             type: 'error',
-            message: err.toString()
+            message: errorMessage
           }));
           return;
         }
@@ -202,9 +354,15 @@ wss.on('connection', (ws) => {
   });
 });
 
-// Start server
-server.listen(PORT, () => {
-  console.log(`🚀 Logo Web IDE Backend running on http://localhost:${PORT}`);
-  console.log(`📡 WebSocket available at ws://localhost:${PORT}/ws/execute`);
+// Initialize file storage and start server
+fileManager.initializeFileStorage().then(() => {
+  server.listen(PORT, () => {
+    console.log(`🚀 Logo Web IDE Backend running on http://localhost:${PORT}`);
+    console.log(`📡 WebSocket available at ws://localhost:${PORT}/ws/execute`);
+    console.log(`📁 File storage initialized`);
+  });
+}).catch((error) => {
+  console.error('Failed to start server:', error);
+  process.exit(1);
 });
 
