@@ -389,10 +389,12 @@ wss.on('connection', (ws) => {
 
 // Initialize file storage and start server
 fileManager.initializeFileStorage().then(() => {
-  server.listen(PORT, () => {
-    console.log(`🚀 Logo Web IDE Backend running on http://localhost:${PORT}`);
-    console.log(`📡 WebSocket available at ws://localhost:${PORT}/ws/execute`);
+  // Listen on 0.0.0.0 to accept connections from any interface (needed for EC2)
+  server.listen(PORT, '0.0.0.0', () => {
+    console.log(`🚀 Logo Web IDE Backend running on http://0.0.0.0:${PORT}`);
+    console.log(`📡 WebSocket available at ws://0.0.0.0:${PORT}/ws/execute`);
     console.log(`📁 File storage initialized`);
+    console.log(`🌐 Accessible from external IPs (EC2 compatible)`);
   });
 }).catch((error) => {
   console.error('Failed to start server:', error);

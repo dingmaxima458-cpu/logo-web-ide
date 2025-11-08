@@ -1,6 +1,19 @@
 import axios from 'axios';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+// Use relative URLs for API calls - this works with Vite proxy in dev
+// and same-origin in production (when using nginx reverse proxy)
+// For EC2 direct access, use the EC2 hostname via environment variable
+const getApiBaseUrl = () => {
+  // If VITE_API_URL is set, use it (for EC2 direct access)
+  if (import.meta.env.VITE_API_URL) {
+    return import.meta.env.VITE_API_URL;
+  }
+  // Otherwise use relative URLs (works with Vite proxy in dev)
+  // In production with nginx, this will use same origin
+  return '';
+};
+
+const API_BASE_URL = getApiBaseUrl();
 // Backend is now Node.js/Express (same port, different runtime)
 
 export interface CodeRequest {
