@@ -9,6 +9,7 @@ import { WebSocketServer } from 'ws';
 import { createServer } from 'http';
 import { createRequire } from 'module';
 import * as fileManager from './fileManager.js';
+import { SHAPE_COMMANDS } from './shapeCommands.js';
 
 // logo package uses CommonJS, so we need to use createRequire
 const require = createRequire(import.meta.url);
@@ -62,14 +63,165 @@ app.use(cors({
 }));
 app.use(express.json());
 
+// Request logging middleware
+app.use((req, res, next) => {
+  console.log(`[Server] ${req.method} ${req.path}`);
+  if (req.body && Object.keys(req.body).length > 0) {
+    console.log('[Server] Request body keys:', Object.keys(req.body));
+  }
+  next();
+});
+
+// Expand simple extended command calls to inline Logo code
+// Complex commands (STAMPOVAL, STAMPCIRCLE, etc.) still need procedure definitions
+function expandExtendedCommands(code) {
+  let expanded = code;
+  
+  // Expand SQUARE :size -> REPEAT 4 [FD :size RT 90]
+  expanded = expanded.replace(/\bSQUARE\s+(\S+)/gi, (match, size) => {
+    return `REPEAT 4 [FD ${size} RT 90]`;
+  });
+  
+  // Expand RECTANGLE :width :height
+  expanded = expanded.replace(/\bRECTANGLE\s+(\S+)\s+(\S+)/gi, (match, width, height) => {
+    return `REPEAT 2 [FD ${width} RT 90 FD ${height} RT 90]`;
+  });
+  
+  // Expand TRIANGLE :size -> REPEAT 3 [FD :size RT 120]
+  expanded = expanded.replace(/\bTRIANGLE\s+(\S+)/gi, (match, size) => {
+    return `REPEAT 3 [FD ${size} RT 120]`;
+  });
+  
+  // Expand CIRCLE :radius (approximate with many small steps)
+  expanded = expanded.replace(/\bCIRCLE\s+(\S+)/gi, (match, radius) => {
+    // Use a fixed number of steps for smooth circle
+    return `REPEAT 60 [FD ${radius} * 6.28318 / 60 RT 6]`;
+  });
+  
+  // For complex commands (STAMPOVAL, STAMPCIRCLE, STAMPSQUARE, OVAL), we need procedures
+  // Check if any of these are used
+  const needsProcedures = /\b(STAMPOVAL|STAMPCIRCLE|STAMPSQUARE|OVAL)\s+[0-9]/i.test(expanded);
+  
+  if (needsProcedures) {
+    // Prepend procedure definitions, but structure code to force execution
+    // The trick: wrap user code in a way that ensures it executes
+    expanded = SHAPE_COMMANDS + '\n' + expanded;
+    // Add a dummy command at the end to force execution context
+    // Actually, let's try a different approach - execute in two stages won't work
+    // So we'll keep the procedures but ensure execution by checking the result
+  }
+  
+  return expanded;
+}
+
+// Fully expand ALL extended commands inline (fallback when procedure approach fails)
+function fullyExpandExtendedCommands(code) {
+  let expanded = code;
+  
+  // Expand all commands inline with simplified implementations
+  expanded = expanded.replace(/\bSQUARE\s+(\S+)/gi, (match, size) => {
+    return `REPEAT 4 [FD ${size} RT 90]`;
+  });
+  
+  expanded = expanded.replace(/\bRECTANGLE\s+(\S+)\s+(\S+)/gi, (match, width, height) => {
+    return `REPEAT 2 [FD ${width} RT 90 FD ${height} RT 90]`;
+  });
+  
+  expanded = expanded.replace(/\bTRIANGLE\s+(\S+)/gi, (match, size) => {
+    return `REPEAT 3 [FD ${size} RT 120]`;
+  });
+  
+  expanded = expanded.replace(/\bCIRCLE\s+(\S+)/gi, (match, radius) => {
+    return `REPEAT 60 [FD ${radius} * 6.28318 / 60 RT 6]`;
+  });
+  
+  // Simplified OVAL (ellipse approximation using basic Logo commands)
+  // Draws a SINGLE oval outline
+  expanded = expanded.replace(/\bOVAL\s+(\S+)\s+(\S+)/gi, (match, width, height) => {
+    const w = parseFloat(width) || 10;
+    const h = parseFloat(height) || 10;
+    const steps = 60; // Number of steps for smooth oval
+    const stepAngle = 360 / steps;
+    let result = '';
+    for (let i = 0; i < steps; i++) {
+      const angle = (i * stepAngle) * Math.PI / 180;
+      // Ellipse parametric form: calculate distance for this angle
+      const dist = Math.sqrt(w * w * Math.cos(angle) * Math.cos(angle) + h * h * Math.sin(angle) * Math.sin(angle));
+      // Calculate step size based on arc length
+      const nextAngle = ((i + 1) * stepAngle) * Math.PI / 180;
+      const nextDist = Math.sqrt(w * w * Math.cos(nextAngle) * Math.cos(nextAngle) + h * h * Math.sin(nextAngle) * Math.sin(nextAngle));
+      // Approximate step distance
+      const stepDist = (dist + nextDist) / 2 * (stepAngle * Math.PI / 180);
+      result += `FD ${stepDist.toFixed(3)} RT ${stepAngle} `;
+    }
+    return result.trim();
+  });
+  
+  // STAMPOVAL draws a SINGLE oval (according to Terrapin Logo spec)
+  // Syntax: STAMPOVAL xradius yradius
+  // The filled version uses: (STAMPOVAL xradius yradius "TRUE)
+  // For now, we'll implement the basic outline version
+  expanded = expanded.replace(/\bSTAMPOVAL\s+(\S+)\s+(\S+)/gi, (match, xradius, yradius) => {
+    const w = parseFloat(xradius) || 10;
+    const h = parseFloat(yradius) || 10;
+    // Draw a single oval outline - same as OVAL
+    const steps = 60; // Number of steps for smooth oval
+    const stepAngle = 360 / steps;
+    let result = '';
+    for (let i = 0; i < steps; i++) {
+      const angle = (i * stepAngle) * Math.PI / 180;
+      // Ellipse parametric form: calculate distance for this angle
+      const dist = Math.sqrt(w * w * Math.cos(angle) * Math.cos(angle) + h * h * Math.sin(angle) * Math.sin(angle));
+      // Calculate step size based on arc length
+      const nextAngle = ((i + 1) * stepAngle) * Math.PI / 180;
+      const nextDist = Math.sqrt(w * w * Math.cos(nextAngle) * Math.cos(nextAngle) + h * h * Math.sin(nextAngle) * Math.sin(nextAngle));
+      // Approximate step distance
+      const stepDist = (dist + nextDist) / 2 * (stepAngle * Math.PI / 180);
+      result += `FD ${stepDist.toFixed(3)} RT ${stepAngle} `;
+    }
+    return result.trim();
+  });
+  
+  // Simplified STAMPCIRCLE (draw multiple circles)
+  expanded = expanded.replace(/\bSTAMPCIRCLE\s+(\S+)/gi, (match, radius) => {
+    const r = parseFloat(radius) || 10;
+    let result = '';
+    for (let i = 0; i < r; i++) {
+      const currentR = r - i;
+      if (currentR > 0) {
+        result += `REPEAT 60 [FD ${currentR} * 6.28318 / 60 RT 6] `;
+      }
+    }
+    return result.trim();
+  });
+  
+  // Simplified STAMPSQUARE
+  expanded = expanded.replace(/\bSTAMPSQUARE\s+(\S+)/gi, (match, size) => {
+    const s = parseFloat(size) || 10;
+    let result = '';
+    for (let i = 0; i < s; i++) {
+      const currentSize = s - i * 2;
+      if (currentSize > 0) {
+        result += `REPEAT 4 [FD ${currentSize} RT 90] `;
+      }
+    }
+    return result.trim();
+  });
+  
+  return expanded;
+}
+
 // Convert Logo commands to turtle graphics format
 function convertLogoCommands(logoCommands) {
+  console.log('[convertLogoCommands] Input:', JSON.stringify(logoCommands, null, 2));
   const turtleCommands = [];
   let x = 0, y = 0, angle = 90; // Logo convention: start facing up
   let penDown = true;
 
   if (logoCommands && Array.isArray(logoCommands)) {
-    logoCommands.forEach(cmd => {
+    console.log('[convertLogoCommands] Processing', logoCommands.length, 'commands');
+    logoCommands.forEach((cmd, index) => {
+      console.log(`[convertLogoCommands] Command ${index}:`, JSON.stringify(cmd));
       // Handle move command: {"move": [distance]}
       if (cmd.move && Array.isArray(cmd.move) && cmd.move.length > 0) {
         const distance = cmd.move[0];
@@ -107,6 +259,25 @@ function convertLogoCommands(logoCommands) {
           down: true
         });
       }
+      // Handle setposition/setxy command: {"setposition": [x, y]}
+      else if (cmd.setposition && Array.isArray(cmd.setposition) && cmd.setposition.length >= 2) {
+        x = cmd.setposition[0];
+        y = cmd.setposition[1];
+        turtleCommands.push({
+          type: 'move',
+          x: x,
+          y: y,
+          penDown: penDown
+        });
+      }
+      // Handle setheading/seth command: {"setheading": [angle]}
+      else if (cmd.setheading && Array.isArray(cmd.setheading) && cmd.setheading.length > 0) {
+        angle = cmd.setheading[0];
+        turtleCommands.push({
+          type: 'turn',
+          angle: angle
+        });
+      }
       // Handle home
       else if (cmd.home) {
         x = 0;
@@ -120,9 +291,15 @@ function convertLogoCommands(logoCommands) {
         });
       }
       // Ignore begin/end markers
+      else {
+        console.log(`[convertLogoCommands] Unhandled command type:`, Object.keys(cmd));
+      }
     });
+  } else {
+    console.log('[convertLogoCommands] logoCommands is not an array:', typeof logoCommands, logoCommands);
   }
 
+  console.log('[convertLogoCommands] Returning', turtleCommands.length, 'turtle commands');
   return turtleCommands;
 }
 
@@ -191,6 +368,15 @@ app.delete('/api/files/:id', async (req, res) => {
 
 // Execute Logo code endpoint - supports both fileId and direct code
 app.post('/api/execute', async (req, res) => {
+  console.log('[Server] /api/execute endpoint hit');
+  console.log('[Server] Request body:', {
+    hasFileId: !!req.body.fileId,
+    hasCode: !!req.body.code,
+    codeLength: req.body.code?.length || 0,
+    reset: req.body.reset,
+    codePreview: req.body.code?.substring(0, 100) || 'N/A'
+  });
+  
   try {
     const { fileId, code, reset = true } = req.body;
     
@@ -199,22 +385,61 @@ app.post('/api/execute', async (req, res) => {
     
     // If fileId is provided, load the file
     if (fileId) {
+      console.log('[Server] Loading file with ID:', fileId);
       fileInfo = await fileManager.loadFile(fileId);
       codeToExecute = fileInfo.content;
+      console.log('[Server] File loaded, content length:', codeToExecute.length);
     }
     
     // Fallback: code must be provided if no fileId
     if (!codeToExecute || typeof codeToExecute !== 'string') {
+      console.error('[Server] Error: No code provided');
       return res.status(400).json({
         success: false,
         error: 'Either fileId or code must be provided',
         commands: []
       });
     }
+    
+    console.log('[Server] Code to execute (length):', codeToExecute.length);
+    console.log('[Server] Code to execute (first 200 chars):', codeToExecute.substring(0, 200));
 
+    // Check if user code actually CALLS extended shape commands (not just mentions them)
+    // Remove comments and check for actual command calls (not procedure definitions)
+    const codeWithoutComments = codeToExecute
+      .split('\n')
+      .filter(line => {
+        const trimmed = line.trim();
+        return !trimmed.startsWith(';') && !trimmed.startsWith('TO ') && trimmed.length > 0;
+      })
+      .join('\n');
+    
+    // Check for actual command calls (not procedure definitions)
+    // Look for patterns like "SQUARE 50" or "CIRCLE 100" (command with argument)
+    const usesExtendedCommands = /\b(STAMPOVAL|STAMPCIRCLE|STAMPSQUARE|CIRCLE|SQUARE|RECTANGLE|TRIANGLE|OVAL)\s+[0-9]/i.test(codeWithoutComments);
+    console.log('[Server] Uses extended commands:', usesExtendedCommands);
+    console.log('[Server] Code without comments (first 200 chars):', codeWithoutComments.substring(0, 200));
+    
+    // IMPORTANT: The logo package has a bug where it doesn't execute commands after procedure definitions
+    // Solution: Instead of prepending procedure definitions, we'll expand extended command calls inline
+    let codeToConvert = codeToExecute;
+    if (usesExtendedCommands) {
+      console.log('[Server] Expanding extended commands inline...');
+      // Expand extended command calls to their basic Logo equivalents
+      codeToConvert = expandExtendedCommands(codeToExecute);
+      console.log('[Server] Expanded code length:', codeToConvert.length);
+    } else {
+      console.log('[Server] Not using extended commands, executing code directly');
+    }
+
+    console.log('[Server] Code to convert length:', codeToConvert.length);
+    console.log('[Server] Code to convert preview (first 500 chars):', codeToConvert.substring(0, 500));
+    console.log('[Server] Calling logo.convert()...');
     // Convert Logo code using the logo package
-    logo.convert(codeToExecute, (err, logoCommands) => {
+    logo.convert(codeToConvert, (err, logoCommands) => {
       if (err) {
+        console.error('[Server] logo.convert() error:', err);
+        console.error('[Server] Error message:', err.toString());
         // Get the raw error message from the compiler
         let errorMessage = err.toString();
         
@@ -259,6 +484,7 @@ app.post('/api/execute', async (req, res) => {
           errorMessage = `Error in line ${lineNumber}: ${errorMessage}`;
         }
         
+        console.log('[Server] Sending error response');
         return res.json({
           success: false,
           error: errorMessage,
@@ -267,9 +493,53 @@ app.post('/api/execute', async (req, res) => {
         });
       }
 
+      console.log('[Server] logo.convert() successful');
+      console.log('[Server] Logo commands received:', logoCommands?.length || 0);
+      console.log('[Server] Logo commands structure:', JSON.stringify(logoCommands, null, 2));
+      
+      // Check if logo.convert() only returned begin/end markers (bug when procedures are defined)
+      const onlyMarkers = logoCommands && logoCommands.length === 2 && 
+        logoCommands[0].begin && logoCommands[1].end;
+      
+      if (onlyMarkers && usesExtendedCommands) {
+        console.log('[Server] Detected logo package bug - only begin/end returned');
+        console.log('[Server] Falling back to inline expansion of all extended commands...');
+        
+        // Fallback: expand ALL extended commands inline (including complex ones)
+        // Use original code, not the already-expanded version
+        const fullyExpanded = fullyExpandExtendedCommands(codeToExecute);
+        console.log('[Server] Fully expanded code length:', fullyExpanded.length);
+        
+        // Try again with fully expanded code
+        logo.convert(fullyExpanded, (err2, logoCommands2) => {
+          if (err2) {
+            console.error('[Server] logo.convert() error on retry:', err2);
+            return res.json({
+              success: false,
+              error: err2.toString(),
+              commands: [],
+              output: ''
+            });
+          }
+          
+          console.log('[Server] Retry successful, commands:', logoCommands2?.length || 0);
+          const turtleCommands = convertLogoCommands(logoCommands2);
+          res.json({
+            success: true,
+            commands: turtleCommands,
+            output: '',
+            error: ''
+          });
+        });
+        return; // Don't continue with original response
+      }
+      
       // Convert to turtle graphics format
       const turtleCommands = convertLogoCommands(logoCommands);
+      console.log('[Server] Converted to turtle commands:', turtleCommands.length);
+      console.log('[Server] First few commands:', turtleCommands.slice(0, 3));
 
+      console.log('[Server] Sending success response');
       res.json({
         success: true,
         commands: turtleCommands,
@@ -278,6 +548,8 @@ app.post('/api/execute', async (req, res) => {
       });
     });
   } catch (error) {
+    console.error('[Server] Exception in /api/execute:', error);
+    console.error('[Server] Error stack:', error.stack);
     res.status(500).json({
       success: false,
       error: error.message,
@@ -307,8 +579,25 @@ wss.on('connection', (ws) => {
         return;
       }
 
+      // Check if user code actually CALLS extended shape commands (same logic as HTTP endpoint)
+      const codeWithoutComments = code
+        .split('\n')
+        .filter(line => {
+          const trimmed = line.trim();
+          return !trimmed.startsWith(';') && !trimmed.startsWith('TO ') && trimmed.length > 0;
+        })
+        .join('\n');
+      
+      const usesExtendedCommands = /\b(STAMPOVAL|STAMPCIRCLE|STAMPSQUARE|CIRCLE|SQUARE|RECTANGLE|TRIANGLE|OVAL)\s+[0-9]/i.test(codeWithoutComments);
+      
+      // Only prepend shape commands if they're actually CALLED
+      let codeToConvert = code;
+      if (usesExtendedCommands) {
+        codeToConvert = SHAPE_COMMANDS + '\n' + code;
+      }
+      
       // Convert Logo code
-      logo.convert(code, (err, logoCommands) => {
+      logo.convert(codeToConvert, (err, logoCommands) => {
         if (err) {
           // Get the raw error message from the compiler
           let errorMessage = err.toString();

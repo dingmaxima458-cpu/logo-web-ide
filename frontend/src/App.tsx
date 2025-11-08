@@ -1,10 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import './App.css';
 import CodeEditor from './components/CodeEditor/CodeEditor';
 import TurtleCanvas from './components/Canvas/TurtleCanvas';
 import Controls from './components/Controls/Controls';
 import Console, { ConsoleMessage } from './components/Console/Console';
-import { executeCode } from './services/api';
+import { executeCode, healthCheck } from './services/api';
 
 interface TurtleCommand {
   type: string;
@@ -40,14 +40,41 @@ forward 100
   const [isRunning, setIsRunning] = useState(false);
   const [consoleMessages, setConsoleMessages] = useState<ConsoleMessage[]>([]);
 
+  // Check backend connection on mount
+  useEffect(() => {
+    const checkBackend = async () => {
+      try {
+        await healthCheck();
+        // Backend is available - no message needed, it's working
+      } catch (error: any) {
+        // Backend is not available - show warning
+        setConsoleMessages([{
+          type: 'error',
+          message: `⚠️ Backend connection failed: ${error.message}. Make sure the backend server is running.`,
+          timestamp: new Date()
+        }]);
+      }
+    };
+    
+    checkBackend();
+  }, []);
+
   const handleRun = async () => {
+    console.log('[App] handleRun called');
+    console.log('[App] Code to execute:', code);
+    console.log('[App] Setting isRunning to true');
     setIsRunning(true);
     setCommands([]);
     setConsoleMessages([]);
 
     try {
+      console.log('[App] Calling executeCode...');
       const response = await executeCode(code, true);
+      console.log('[App] executeCode response received:', response);
+      
       if (response.success) {
+        console.log('[App] Response successful, commands count:', response.commands.length);
+        console.log('[App] Commands:', JSON.stringify(response.commands, null, 2));
         setCommands(response.commands);
         
         // Add success message if there's output
@@ -65,6 +92,7 @@ forward 100
           }]);
         }
       } else {
+        console.log('[App] Response failed, error:', response.error);
         // Add error message to console
         const errorMsg = response.error || 'Execution failed';
         setConsoleMessages(prev => [...prev, {
@@ -74,6 +102,13 @@ forward 100
         }]);
       }
     } catch (err: any) {
+      console.error('[App] Exception in handleRun:', err);
+      console.error('[App] Error details:', {
+        message: err.message,
+        response: err.response?.data,
+        status: err.response?.status,
+        code: err.code
+      });
       // Add error message to console
       const errorMsg = err.response?.data?.error || err.message || 'Failed to execute code';
       setConsoleMessages(prev => [...prev, {
@@ -82,6 +117,7 @@ forward 100
         timestamp: new Date()
       }]);
     } finally {
+      console.log('[App] Setting isRunning to false');
       setIsRunning(false);
     }
   };

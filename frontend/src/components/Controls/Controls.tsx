@@ -9,11 +9,16 @@ interface ControlsProps {
 }
 
 const Controls: React.FC<ControlsProps> = ({ onRun, onClear, onReset, isRunning }) => {
+  const handleRunClick = () => {
+    console.log('[Controls] Run button clicked');
+    onRun();
+  };
+
   return (
     <div className="controls-container">
       <button
         className="control-button control-button-primary"
-        onClick={onRun}
+        onClick={handleRunClick}
         disabled={isRunning}
       >
         {isRunning ? '⏳ Running...' : '▶️ Run'}

@@ -27,11 +27,20 @@ const TurtleCanvas: React.FC<TurtleCanvasProps> = ({ commands }) => {
   });
 
   useEffect(() => {
+    console.log('[TurtleCanvas] useEffect triggered, commands count:', commands.length);
+    console.log('[TurtleCanvas] Commands:', JSON.stringify(commands.slice(0, 3), null, 2));
+    
     const canvas = canvasRef.current;
-    if (!canvas) return;
+    if (!canvas) {
+      console.warn('[TurtleCanvas] Canvas ref is null');
+      return;
+    }
 
     const ctx = canvas.getContext('2d');
-    if (!ctx) return;
+    if (!ctx) {
+      console.warn('[TurtleCanvas] Could not get 2d context');
+      return;
+    }
 
     const drawTurtle = (ctx: CanvasRenderingContext2D, centerX: number, centerY: number, scale: number) => {
       const x = centerX + turtleRef.current.x * scale;
@@ -83,9 +92,14 @@ const TurtleCanvas: React.FC<TurtleCanvasProps> = ({ commands }) => {
       let pathStarted = false;
 
       // Process all commands
-      commands.forEach((cmd) => {
+      console.log('[TurtleCanvas] Processing', commands.length, 'commands');
+      commands.forEach((cmd, index) => {
         const screenX = centerX + turtleRef.current.x * scale;
         const screenY = centerY - turtleRef.current.y * scale; // Flip y-axis
+
+        if (index < 3) {
+          console.log(`[TurtleCanvas] Command ${index}:`, cmd);
+        }
 
         switch (cmd.type) {
           case 'move':
@@ -140,12 +154,14 @@ const TurtleCanvas: React.FC<TurtleCanvasProps> = ({ commands }) => {
 
       // Draw turtle at current position
       drawTurtle(ctx, centerX, centerY, scale);
+      console.log('[TurtleCanvas] Redraw complete');
     };
 
     // Set canvas size
     const resizeCanvas = () => {
       canvas.width = canvas.offsetWidth;
       canvas.height = canvas.offsetHeight;
+      console.log('[TurtleCanvas] Canvas resized to:', canvas.width, 'x', canvas.height);
       
       // Reset and redraw
       ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -153,10 +169,12 @@ const TurtleCanvas: React.FC<TurtleCanvasProps> = ({ commands }) => {
     };
 
     // Initial setup
+    console.log('[TurtleCanvas] Initial setup');
     resizeCanvas();
     window.addEventListener('resize', resizeCanvas);
 
     // Initial draw
+    console.log('[TurtleCanvas] Initial draw');
     redraw();
 
     return () => {
