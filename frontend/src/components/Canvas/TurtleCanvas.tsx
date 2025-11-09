@@ -11,6 +11,7 @@ interface TurtleCommand {
   r?: number;
   g?: number;
   b?: number;
+  width?: number;
 }
 
 interface TurtleCanvasProps {
@@ -85,11 +86,13 @@ const TurtleCanvas: React.FC<TurtleCanvasProps> = ({ commands }) => {
       };
 
       ctx.strokeStyle = '#4ec9b0';
-      ctx.lineWidth = 2;
+      ctx.lineWidth = 2; // Default line width
       ctx.lineCap = 'round';
       ctx.lineJoin = 'round';
 
       let pathStarted = false;
+      let currentColor = '#4ec9b0';
+      let currentWidth = 2;
 
       // Process all commands
       console.log('[TurtleCanvas] Processing', commands.length, 'commands');
@@ -115,6 +118,9 @@ const TurtleCanvas: React.FC<TurtleCanvasProps> = ({ commands }) => {
                 }
                 ctx.lineTo(newScreenX, newScreenY);
                 ctx.stroke();
+                // After stroking, we need to start a new path for the next segment
+                // This ensures color/width changes affect only subsequent segments
+                pathStarted = false;
               } else {
                 ctx.beginPath();
                 ctx.moveTo(newScreenX, newScreenY);
@@ -140,13 +146,35 @@ const TurtleCanvas: React.FC<TurtleCanvasProps> = ({ commands }) => {
                 ctx.beginPath();
                 ctx.moveTo(screenX, screenY);
                 pathStarted = true;
+              } else if (!cmd.down && pathStarted) {
+                // Pen up - close current path
+                ctx.stroke();
+                pathStarted = false;
               }
             }
             break;
 
           case 'color':
             if (cmd.r !== undefined && cmd.g !== undefined && cmd.b !== undefined) {
-              ctx.strokeStyle = `rgb(${cmd.r}, ${cmd.g}, ${cmd.b})`;
+              currentColor = `rgb(${cmd.r}, ${cmd.g}, ${cmd.b})`;
+              ctx.strokeStyle = currentColor;
+              // If we have an active path, close it and start a new one with new color
+              if (pathStarted) {
+                ctx.stroke();
+                pathStarted = false;
+              }
+            }
+            break;
+
+          case 'width':
+            if (cmd.width !== undefined) {
+              currentWidth = cmd.width;
+              ctx.lineWidth = currentWidth;
+              // If we have an active path, close it and start a new one with new width
+              if (pathStarted) {
+                ctx.stroke();
+                pathStarted = false;
+              }
             }
             break;
         }

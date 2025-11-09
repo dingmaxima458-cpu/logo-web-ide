@@ -1,121 +1,140 @@
-# Logo Web IDE - Modern Logo Programming Language Playground
+# 🐢 Logo Web IDE
 
-A modern web-based IDE and visualization playground for the classic Logo programming language (like Terrapin Logo), featuring a React frontend and Node.js backend architecture.
+A modern, web-based IDE and playground for the Logo programming language. Write Logo code, visualize turtle graphics in real-time, and learn programming through drawing!
 
-## Logo Interpreter
+![Logo Web IDE](https://img.shields.io/badge/Logo-Web%20IDE-blue)
+![Node.js](https://img.shields.io/badge/Node.js-16+-green)
+![React](https://img.shields.io/badge/React-18-blue)
+![TypeScript](https://img.shields.io/badge/TypeScript-5.0-blue)
 
-The backend uses the **`logo` npm package** - a well-maintained, comprehensive Logo interpreter written in JavaScript. This approach provides:
+## ✨ Features
 
-✅ **Packaged Solution** - Uses existing, tested Logo interpreter  
-✅ **Comprehensive Logo Support** - Full Logo language implementation  
-✅ **Simple Architecture** - Pure Node.js, no subprocess overhead  
-✅ **Wide Language Coverage** - Supports all standard Logo commands  
-✅ **Procedure & Loop Support** - Handles `TO ... END` procedures and `REPEAT` loops  
+- **🎨 Real-time Turtle Graphics** - Watch your Logo code come to life with beautiful visualizations
+- **💻 Modern Code Editor** - Powered by Monaco Editor (VS Code editor) with syntax highlighting
+- **🚀 Fast Execution** - Direct integration with Logo interpreter, no subprocess overhead 
+- **🔄 Live Updates** - See your drawings update as you modify code
 
-**Supported Logo Commands:**
-All standard Logo commands including:
-- **Movement**: `FORWARD`/`FD`, `BACK`/`BK`
-- **Rotation**: `RIGHT`/`RT`, `LEFT`/`LT`
-- **Control Flow**: `REPEAT`, `IF`, `WHILE`
-- **Procedures**: `TO name ... END` definitions
-- **And many more!**
-
-## Project Structure
-
-```
-logoWeb/
-├── frontend/          # React + TypeScript frontend
-│   ├── src/
-│   │   ├── components/
-│   │   │   ├── CodeEditor/    # Monaco Editor component
-│   │   │   ├── Canvas/        # Turtle graphics canvas
-│   │   │   └── Controls/      # Run, Stop, Clear controls
-│   │   ├── services/          # API communication
-│   │   └── App.tsx
-│   └── package.json
-├── backend/           # Node.js/Express backend
-│   ├── server.js              # Express server with Logo interpreter
-│   └── package.json
-└── README.md
-```
-
-## Technology Stack
-
-### Frontend
-- **React 18** with TypeScript
-- **Vite** - Modern, fast build tool
-- **Monaco Editor** (VS Code editor) for code editing
-- **HTML5 Canvas** for turtle graphics visualization
-- **Axios** for API communication
-- **WebSocket** support for real-time execution
-
-### Backend
-- **Node.js** with Express
-- **`logo` npm package** - Comprehensive Logo interpreter
-- **WebSocket** support for real-time communication
-
-## Getting Started
+## 🚀 Quick Start
 
 ### Prerequisites
 - **Node.js 16+** and npm
-- That's it! No Python needed.
 
-### Quick Start (Recommended)
+### Installation & Run
 
 ```bash
-# Install all dependencies (root, backend, frontend)
+# Install all dependencies
 npm run install:all
 
-# Start both backend and frontend together
+# Start both backend and frontend
 npm start
+```
 
-# Or for development with auto-reload:
+That's it! Open `http://localhost:3000` in your browser.
+
+For development with auto-reload:
+```bash
 npm run dev
 ```
 
-This will start:
-- **Backend** on `http://localhost:8000`
-- **Frontend** on `http://localhost:3000`
+## 📝 Example Code
 
-### Manual Setup (Alternative)
+Try this in the editor:
 
-If you prefer to run servers separately:
+```logo
+; Draw a square
+forward 100
+right 90
+forward 100
+right 90
+forward 100
+right 90
+forward 100
+```
+
+Or use a loop:
+
+```logo
+REPEAT 4 [FD 100 RT 90]
+```
+
+Try colors and shapes:
+
+```logo
+setcolor 2
+setpensize 5
+forward 100
+right 90
+setcolor 4
+forward 100
+
+; Draw a circle
+CIRCLE 50
+
+; Draw a filled oval
+STAMPOVAL 80 50
+```
+
+## 🎯 Supported Commands
+
+### Basic Movement
+- `FORWARD n` / `FD n` - Move forward
+- `BACK n` / `BK n` - Move backward
+- `RIGHT n` / `RT n` - Turn right
+- `LEFT n` / `LT n` - Turn left
+- `HOME` - Return to center
+- `SETXY x y` - Move to coordinates
+
+### Pen Control
+- `PENDOWN` / `PD` - Start drawing
+- `PENUP` / `PU` - Stop drawing
+- `SETCOLOR n` / `SETC n` - Set pen color (0-15)
+- `SETPENSIZE n` / `SETPS n` - Set pen width
+
+### Shapes (Extended Commands)
+- `CIRCLE radius` - Draw a circle
+- `SQUARE size` - Draw a square
+- `RECTANGLE width height` - Draw a rectangle
+- `TRIANGLE size` - Draw a triangle
+- `OVAL width height` - Draw an oval
+- `STAMPOVAL width height` - Draw a filled oval
+- `STAMPCIRCLE radius` - Draw a filled circle
+- `STAMPSQUARE size` - Draw a filled square
+- `STAMPRECT width height` - Draw a filled rectangle
+
+### Control Flow
+- `REPEAT n [commands]` - Repeat commands
+- `IF condition [commands]` - Conditional execution
+- `TO name :params ... END` - Define procedures
+
+## 🏗️ Tech Stack
+
+- **Frontend**: React 18 + TypeScript + Vite
+- **Backend**: Node.js + Express
+- **Editor**: Monaco Editor (VS Code editor)
+- **Graphics**: HTML5 Canvas
+- **Logo Interpreter**: `logo` npm package
+
+
+## 🛠️ Development
+
+### Run Servers Separately
 
 **Backend:**
 ```bash
 cd backend
 npm install
-npm start
-# or for development with auto-reload:
-npm run dev
+npm start        # Production
+npm run dev      # Development with auto-reload
 ```
 
 **Frontend:**
 ```bash
 cd frontend
 npm install
-npm run dev
-# or
-npm start
+npm start        # Development server
+npm run build    # Production build
 ```
 
-## Features
+---
 
-- [x] Modern code editor with syntax highlighting
-- [x] Real-time turtle graphics visualization
-- [x] Code execution via REST API
-- [x] WebSocket support for live execution
-- [ ] Error handling and debugging
-- [ ] Code examples and tutorials
-- [ ] Save/load programs
-- [ ] Export graphics as images
-
-## API Endpoints
-
-- `POST /api/execute` - Execute Logo code and return turtle commands
-- `WS /ws/execute` - WebSocket endpoint for real-time execution
-- `GET /api/health` - Health check endpoint
-
-## License
-
-MIT
+**Happy Coding! 🐢✨**

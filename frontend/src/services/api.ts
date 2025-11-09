@@ -38,6 +38,7 @@ export interface ExecutionResponse {
     r?: number;
     g?: number;
     b?: number;
+    width?: number;
   }>;
   output: string;
   error: string;

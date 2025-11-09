@@ -98,6 +98,11 @@ function expandExtendedCommands(code) {
     return `REPEAT 60 [FD ${radius} * 6.28318 / 60 RT 6]`;
   });
   
+  // Expand STAMPRECT :width :height (simple version - just draw a rectangle)
+  expanded = expanded.replace(/\bSTAMPRECT\s+(\S+)\s+(\S+)/gi, (match, width, height) => {
+    return `REPEAT 2 [FD ${width} RT 90 FD ${height} RT 90]`;
+  });
+  
   // For complex commands (STAMPOVAL, STAMPCIRCLE, STAMPSQUARE, OVAL), we need procedures
   // Check if any of these are used
   const needsProcedures = /\b(STAMPOVAL|STAMPCIRCLE|STAMPSQUARE|OVAL)\s+[0-9]/i.test(expanded);
@@ -208,6 +213,26 @@ function fullyExpandExtendedCommands(code) {
     return result.trim();
   });
   
+  // STAMPRECT draws a filled rectangle (multiple nested rectangles)
+  // According to Terrapin Logo: draws a rectangle, filled if (STAMPRECT w h "TRUE)
+  // For now, we'll draw a simple filled rectangle with a few nested rectangles
+  expanded = expanded.replace(/\bSTAMPRECT\s+(\S+)\s+(\S+)/gi, (match, width, height) => {
+    const w = parseFloat(width) || 10;
+    const h = parseFloat(height) || 10;
+    // Draw a few nested rectangles to create a filled effect
+    const numRects = Math.min(Math.floor(Math.max(w, h) / 3), 5); // Max 5 rectangles
+    let result = '';
+    for (let i = 0; i < numRects; i++) {
+      const scale = 1 - (i / (numRects + 1));
+      const w2 = w * scale;
+      const h2 = h * scale;
+      if (w2 > 0.5 && h2 > 0.5) {
+        result += `REPEAT 2 [FD ${w2.toFixed(2)} RT 90 FD ${h2.toFixed(2)} RT 90] `;
+      }
+    }
+    return result.trim();
+  });
+  
   return expanded;
 }
 
@@ -288,6 +313,60 @@ function convertLogoCommands(logoCommands) {
           x: 0,
           y: 0,
           penDown: penDown
+        });
+      }
+      // Handle setcolor/setpencolor command: {"setcolor": [colorValue]}
+      // Logo package uses color indices (0-15) or RGB values
+      else if (cmd.setcolor && Array.isArray(cmd.setcolor) && cmd.setcolor.length > 0) {
+        const colorValue = cmd.setcolor[0];
+        // Convert color value to RGB
+        // If it's a number (0-15), it's a color index. Otherwise, treat as RGB component
+        const colorNum = parseFloat(colorValue);
+        let r, g, b;
+        
+        if (!isNaN(colorNum) && colorNum >= 0 && colorNum <= 15) {
+          // Standard Logo color palette (16 colors)
+          const colorPalette = [
+            [0, 0, 0],       // 0: Black
+            [255, 255, 255], // 1: White
+            [255, 0, 0],     // 2: Red
+            [0, 255, 0],     // 3: Green
+            [0, 0, 255],     // 4: Blue
+            [255, 255, 0],   // 5: Yellow
+            [255, 0, 255],   // 6: Magenta
+            [0, 255, 255],   // 7: Cyan
+            [128, 128, 128], // 8: Gray
+            [128, 0, 0],     // 9: Dark Red
+            [0, 128, 0],     // 10: Dark Green
+            [0, 0, 128],     // 11: Dark Blue
+            [128, 128, 0],   // 12: Dark Yellow
+            [128, 0, 128],   // 13: Dark Magenta
+            [0, 128, 128],   // 14: Dark Cyan
+            [192, 192, 192]  // 15: Light Gray
+          ];
+          const rgb = colorPalette[Math.floor(colorNum)] || [0, 0, 0];
+          r = rgb[0];
+          g = rgb[1];
+          b = rgb[2];
+        } else {
+          // If not a standard color index, treat as grayscale or single RGB component
+          const val = Math.max(0, Math.min(255, Math.floor(colorNum)));
+          r = g = b = val;
+        }
+        
+        turtleCommands.push({
+          type: 'color',
+          r: r,
+          g: g,
+          b: b
+        });
+      }
+      // Handle setwidth/setpensize command: {"setwidth": [width]}
+      else if (cmd.setwidth && Array.isArray(cmd.setwidth) && cmd.setwidth.length > 0) {
+        const width = parseFloat(cmd.setwidth[0]) || 1;
+        turtleCommands.push({
+          type: 'width',
+          width: Math.max(1, Math.min(99, width)) // Clamp between 1 and 99
         });
       }
       // Ignore begin/end markers
@@ -416,7 +495,7 @@ app.post('/api/execute', async (req, res) => {
     
     // Check for actual command calls (not procedure definitions)
     // Look for patterns like "SQUARE 50" or "CIRCLE 100" (command with argument)
-    const usesExtendedCommands = /\b(STAMPOVAL|STAMPCIRCLE|STAMPSQUARE|CIRCLE|SQUARE|RECTANGLE|TRIANGLE|OVAL)\s+[0-9]/i.test(codeWithoutComments);
+    const usesExtendedCommands = /\b(STAMPOVAL|STAMPCIRCLE|STAMPSQUARE|STAMPRECT|CIRCLE|SQUARE|RECTANGLE|TRIANGLE|OVAL)\s+[0-9]/i.test(codeWithoutComments);
     console.log('[Server] Uses extended commands:', usesExtendedCommands);
     console.log('[Server] Code without comments (first 200 chars):', codeWithoutComments.substring(0, 200));
     
