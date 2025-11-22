@@ -11,6 +11,7 @@
   padding: 1rem 2rem;
   border-bottom: 1px solid #3e3e42;
   text-align: center;
+  position: relative;
 }
 
 .App-header h1 {
@@ -22,6 +23,16 @@
 .App-header p {
   color: #858585;
   font-size: 0.9rem;
+}
+
+.current-project-indicator {
+  position: absolute;
+  top: 50%;
+  right: 2rem;
+  transform: translateY(-50%);
+  color: #4ec9b0;
+  font-size: 0.9rem;
+  font-weight: 500;
 }
 
 .App-container {
@@ -36,6 +47,7 @@
   flex-direction: column;
   border-right: 1px solid #3e3e42;
   min-width: 400px;
+  overflow: hidden;
 }
 
 .App-canvas-panel {

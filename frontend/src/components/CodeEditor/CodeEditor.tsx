@@ -1,5 +1,5 @@
-import React from 'react';
-import Editor from '@monaco-editor/react';
+import React, { useRef, useEffect } from 'react';
+import Editor, { Monaco } from '@monaco-editor/react';
 import './CodeEditor.css';
 
 interface CodeEditorProps {
@@ -9,9 +9,35 @@ interface CodeEditorProps {
 }
 
 const CodeEditor: React.FC<CodeEditorProps> = ({ value, onChange, language = 'logo' }) => {
-  const handleEditorChange = (value: string | undefined) => {
-    if (value !== undefined) {
-      onChange(value);
+  const editorRef = useRef<any>(null);
+  const isInternalUpdateRef = useRef(false);
+  const lastValueRef = useRef<string>(value);
+
+  // Only update editor if value changed externally (file switch), not from user edits
+  useEffect(() => {
+    if (editorRef.current && value !== lastValueRef.current && !isInternalUpdateRef.current) {
+      const editor = editorRef.current;
+      const currentValue = editor.getValue();
+      
+      // Only update if the value is actually different (file was switched)
+      if (currentValue !== value) {
+        editor.setValue(value);
+        lastValueRef.current = value;
+      }
+    }
+    isInternalUpdateRef.current = false;
+  }, [value]);
+
+  const handleEditorDidMount = (editor: any, monaco: Monaco) => {
+    editorRef.current = editor;
+    lastValueRef.current = value;
+  };
+
+  const handleEditorChange = (newValue: string | undefined) => {
+    if (newValue !== undefined) {
+      isInternalUpdateRef.current = true; // Mark as internal update
+      lastValueRef.current = newValue;
+      onChange(newValue);
     }
   };
 
@@ -25,6 +51,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ value, onChange, language = 'lo
         language={language}
         value={value}
         onChange={handleEditorChange}
+        onMount={handleEditorDidMount}
         theme="vs-dark"
         options={{
           minimap: { enabled: false },

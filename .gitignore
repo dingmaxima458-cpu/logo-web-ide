@@ -11,6 +11,7 @@ backend/dist/
 
 # File storage
 backend/files/
+backend/projects/
 
 # Python (for future use if needed)
 venv/

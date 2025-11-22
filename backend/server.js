@@ -8,8 +8,14 @@ import cors from 'cors';
 import { WebSocketServer } from 'ws';
 import { createServer } from 'http';
 import { createRequire } from 'module';
-import * as fileManager from './fileManager.js';
+import * as projectManager from './projectManager.js';
 import { SHAPE_COMMANDS } from './shapeCommands.js';
+import { createErrorHandler } from './utils/responseFormatter.js';
+
+// Import v1 API routes
+import projectsRouter from './api/v1/projects.js';
+import filesRouter from './api/v1/files.js';
+import executeRouter from './api/v1/execute.js';
 
 // logo package uses CommonJS, so we need to use createRequire
 const require = createRequire(import.meta.url);
@@ -391,61 +397,13 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-// File management endpoints
-app.post('/api/files', async (req, res) => {
-  try {
-    const { filename, content } = req.body;
-    if (!filename || !content) {
-      return res.status(400).json({ error: 'filename and content are required' });
-    }
-    const file = await fileManager.saveFile(filename, content);
-    res.json(file);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
+// Mount v1 API routes
+app.use('/api/v1/projects', projectsRouter);
+app.use('/api/v1/files', filesRouter);
+app.use('/api/v1/execute', executeRouter);
 
-app.get('/api/files', async (req, res) => {
-  try {
-    const files = await fileManager.listFiles();
-    res.json(files);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-app.get('/api/files/:id', async (req, res) => {
-  try {
-    const file = await fileManager.loadFile(req.params.id);
-    res.json(file);
-  } catch (error) {
-    res.status(404).json({ error: error.message });
-  }
-});
-
-app.put('/api/files/:id', async (req, res) => {
-  try {
-    const { content } = req.body;
-    if (!content) {
-      return res.status(400).json({ error: 'content is required' });
-    }
-    const file = await fileManager.updateFile(req.params.id, content);
-    res.json(file);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-app.delete('/api/files/:id', async (req, res) => {
-  try {
-    await fileManager.deleteFile(req.params.id);
-    res.json({ success: true });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// Execute Logo code endpoint - supports both fileId and direct code
+// Legacy execute endpoint (kept for backward compatibility)
+// Note: This endpoint is deprecated, use /api/v1/execute instead
 app.post('/api/execute', async (req, res) => {
   console.log('[Server] /api/execute endpoint hit');
   console.log('[Server] Request body:', {
@@ -462,20 +420,13 @@ app.post('/api/execute', async (req, res) => {
     let codeToExecute = code;
     let fileInfo = null;
     
-    // If fileId is provided, load the file
-    if (fileId) {
-      console.log('[Server] Loading file with ID:', fileId);
-      fileInfo = await fileManager.loadFile(fileId);
-      codeToExecute = fileInfo.content;
-      console.log('[Server] File loaded, content length:', codeToExecute.length);
-    }
-    
-    // Fallback: code must be provided if no fileId
+    // Legacy endpoint: fileId support removed, use /api/v1/execute with projectId+fileId instead
+    // Code must be provided
     if (!codeToExecute || typeof codeToExecute !== 'string') {
       console.error('[Server] Error: No code provided');
       return res.status(400).json({
         success: false,
-        error: 'Either fileId or code must be provided',
+        error: 'Code is required. For file-based execution, use /api/v1/execute',
         commands: []
       });
     }
@@ -755,13 +706,18 @@ wss.on('connection', (ws) => {
   });
 });
 
-// Initialize file storage and start server
-fileManager.initializeFileStorage().then(() => {
+// Error handling middleware (must be last)
+app.use(createErrorHandler());
+
+// Initialize storage and start server
+projectManager.initializeProjectStorage().then(() => {
   // Listen on 0.0.0.0 to accept connections from any interface (needed for EC2)
   server.listen(PORT, '0.0.0.0', () => {
     console.log(`🚀 Logo Web IDE Backend running on http://0.0.0.0:${PORT}`);
     console.log(`📡 WebSocket available at ws://0.0.0.0:${PORT}/ws/execute`);
     console.log(`📁 File storage initialized`);
+    console.log(`📁 Project storage initialized`);
+    console.log(`🔌 v1 API available at /api/v1/*`);
     console.log(`🌐 Accessible from external IPs (EC2 compatible)`);
   });
 }).catch((error) => {
