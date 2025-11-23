@@ -17,6 +17,8 @@ import { WebSocketServer } from 'ws';
 import { createServer } from 'http';
 import { createRequire } from 'module';
 import * as projectManager from './projectManager.js';
+import * as projectManagerDB from './database/projectManagerDB.js';
+import { initializeSupabase } from './database/supabase.js';
 import { SHAPE_COMMANDS } from './shapeCommands.js';
 import { createErrorHandler } from './utils/responseFormatter.js';
 
@@ -714,22 +716,35 @@ wss.on('connection', (ws) => {
 // Error handling middleware (must be last)
 app.use(createErrorHandler());
 
-// Initialize storage and start server
-projectManager.initializeProjectStorage().then(() => {
-  server.listen(PORT, HOST, () => {
-    const displayHost = HOST === '0.0.0.0' ? 'localhost' : HOST;
-    const accessMode = HOST === '0.0.0.0' ? '(accessible from all network interfaces)' : '(localhost only)';
+// Initialize database and storage, then start server
+async function startServer() {
+  try {
+    // Initialize Supabase database connection
+    initializeSupabase();
     
-    console.log(`🚀 Logo Web IDE Backend running on http://${displayHost}:${PORT}`);
-    console.log(`   ${accessMode}`);
-    console.log(`📡 WebSocket available at ws://${displayHost}:${PORT}/ws/execute`);
-    console.log(`📁 File storage initialized`);
-    console.log(`📁 Project storage initialized`);
-    console.log(`🔌 v1 API available at /api/v1/*`);
-    console.log(`⚙️  Environment: ${process.env.NODE_ENV || 'development'}`);
-  });
-}).catch((error) => {
-  console.error('Failed to start server:', error);
-  process.exit(1);
-});
+    // Initialize file storage directory
+    await projectManagerDB.initializeProjectStorage();
+    
+    // Start server
+    server.listen(PORT, HOST, () => {
+      const displayHost = HOST === '0.0.0.0' ? 'localhost' : HOST;
+      const accessMode = HOST === '0.0.0.0' ? '(accessible from all network interfaces)' : '(localhost only)';
+      
+      console.log(`🚀 Logo Web IDE Backend running on http://${displayHost}:${PORT}`);
+      console.log(`   ${accessMode}`);
+      console.log(`📡 WebSocket available at ws://${displayHost}:${PORT}/ws/execute`);
+      console.log(`💾 Database: Supabase (production) ${process.env.SUPABASE_URL ? '✅' : '⚠️  Not configured'}`);
+      console.log(`📁 File storage initialized`);
+      console.log(`🔌 v1 API available at /api/v1/*`);
+      console.log(`🔐 Auth middleware: Supabase JWT + Mock (dev)`);
+      console.log(`⚙️  Environment: ${process.env.NODE_ENV || 'development'}`);
+    });
+  } catch (error) {
+    console.error('❌ Failed to start server:', error);
+    console.error('   Check your .env configuration, especially SUPABASE_URL and SUPABASE_ANON_KEY');
+    process.exit(1);
+  }
+}
+
+startServer();
 

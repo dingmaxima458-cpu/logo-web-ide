@@ -5,6 +5,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { getAuthProvider } from '../services/auth/authFactory';
 import { User, AuthSession, SignUpCredentials, SignInCredentials } from '../services/auth/types';
+import { setApiAuthToken } from '../services/api-v1';
 
 interface AuthContextType {
   user: User | null;
@@ -39,6 +40,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (mounted) {
           setSession(currentSession);
           setUser(currentSession?.user || null);
+          // Set API auth token
+          setApiAuthToken(currentSession?.accessToken || null);
         }
       } catch (err: any) {
         console.error('Failed to initialize auth:', err);
@@ -59,6 +62,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (mounted) {
         setSession(newSession);
         setUser(newSession?.user || null);
+        // Update API auth token
+        setApiAuthToken(newSession?.accessToken || null);
       }
     });
 
@@ -75,6 +80,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const { user: newUser, session: newSession } = await authProvider.signUp(credentials);
       setUser(newUser);
       setSession(newSession);
+      // Set API auth token
+      setApiAuthToken(newSession.accessToken);
     } catch (err: any) {
       setError(err.message || 'Sign up failed');
       throw err;
@@ -90,6 +97,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const { user: newUser, session: newSession } = await authProvider.signIn(credentials);
       setUser(newUser);
       setSession(newSession);
+      // Set API auth token
+      setApiAuthToken(newSession.accessToken);
     } catch (err: any) {
       setError(err.message || 'Sign in failed');
       throw err;
@@ -104,6 +113,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       await authProvider.signOut();
       setUser(null);
       setSession(null);
+      // Clear API auth token
+      setApiAuthToken(null);
     } catch (err: any) {
       setError(err.message || 'Sign out failed');
       throw err;

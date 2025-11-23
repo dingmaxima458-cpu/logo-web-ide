@@ -1,39 +1,25 @@
 /**
- * Projects API Routes (v1)
+ * Projects API Routes (v1) - Database-backed with Auth
  */
 
 import express from 'express';
-import * as projectManager from '../../projectManager.js';
-import { parseQuery, applyFilters, applyOrder, applySelect, applyPagination } from '../../utils/queryParser.js';
+import * as projectManagerDB from '../../database/projectManagerDB.js';
 import { successResponse, errorResponse, ErrorCodes } from '../../utils/responseFormatter.js';
+import { authMiddleware } from '../../middleware/auth.js';
 
 const router = express.Router();
 
+// Apply auth middleware to all routes
+router.use(authMiddleware);
+
 /**
- * List projects
- * GET /api/v1/projects?select=id,name&order=updatedAt.desc&limit=10
+ * List projects for the authenticated user
+ * GET /api/v1/projects
  */
 router.get('/', async (req, res, next) => {
   try {
-    const query = parseQuery(req.query);
-    let projects = await projectManager.listProjects();
-    
-    // Apply filters
-    projects = applyFilters(projects, query.filters);
-    
-    // Apply sorting
-    projects = applyOrder(projects, query.order);
-    
-    // Get total count before pagination
-    const totalCount = projects.length;
-    
-    // Apply pagination
-    projects = applyPagination(projects, query.limit, query.offset);
-    
-    // Apply field selection
-    projects = applySelect(projects, query.select);
-    
-    res.json(successResponse(projects, totalCount));
+    const projects = await projectManagerDB.listProjects(req.user.id, req.accessToken);
+    res.json(successResponse(projects, projects.length));
   } catch (error) {
     next(error);
   }
@@ -41,23 +27,18 @@ router.get('/', async (req, res, next) => {
 
 /**
  * Get project by ID
- * GET /api/v1/projects/:id
+ * GET /api/v1/projects/:id?includeFiles=true
  */
 router.get('/:id', async (req, res, next) => {
   try {
     const { id } = req.params;
     const includeFiles = req.query.includeFiles === 'true';
     
-    const project = await projectManager.getProject(id, includeFiles);
-    const query = parseQuery(req.query);
-    
-    // Apply field selection
-    const selected = applySelect(project, query.select);
-    
-    res.json(successResponse(selected));
+    const project = await projectManagerDB.getProject(id, req.user.id, req.accessToken, includeFiles);
+    res.json(successResponse(project));
   } catch (error) {
-    if (error.message.includes('not found')) {
-      return res.status(404).json(errorResponse(error.message, ErrorCodes.NOT_FOUND));
+    if (error.message.includes('not found') || error.message.includes('0 rows')) {
+      return res.status(404).json(errorResponse('Project not found', ErrorCodes.NOT_FOUND));
     }
     next(error);
   }
@@ -66,6 +47,7 @@ router.get('/:id', async (req, res, next) => {
 /**
  * Create project
  * POST /api/v1/projects
+ * Body: { name, description? }
  */
 router.post('/', async (req, res, next) => {
   try {
@@ -77,7 +59,11 @@ router.post('/', async (req, res, next) => {
       );
     }
     
-    const project = await projectManager.createProject(name, description || '');
+    const project = await projectManagerDB.createProject(req.user.id, req.accessToken, {
+      name: name.trim(),
+      description: description?.trim() || ''
+    });
+    
     res.status(201).json(successResponse(project));
   } catch (error) {
     next(error);
@@ -87,6 +73,7 @@ router.post('/', async (req, res, next) => {
 /**
  * Update project
  * PUT /api/v1/projects/:id
+ * Body: { name?, description? }
  */
 router.put('/:id', async (req, res, next) => {
   try {
@@ -100,17 +87,17 @@ router.put('/:id', async (req, res, next) => {
           errorResponse('Project name must be a non-empty string', ErrorCodes.VALIDATION_ERROR)
         );
       }
-      updates.name = name;
+      updates.name = name.trim();
     }
     if (description !== undefined) {
-      updates.description = description;
+      updates.description = description?.trim() || '';
     }
     
-    const project = await projectManager.updateProject(id, updates);
+    const project = await projectManagerDB.updateProject(id, req.user.id, req.accessToken, updates);
     res.json(successResponse(project));
   } catch (error) {
-    if (error.message.includes('not found')) {
-      return res.status(404).json(errorResponse(error.message, ErrorCodes.NOT_FOUND));
+    if (error.message.includes('not found') || error.message.includes('0 rows')) {
+      return res.status(404).json(errorResponse('Project not found', ErrorCodes.NOT_FOUND));
     }
     next(error);
   }
@@ -123,78 +110,14 @@ router.put('/:id', async (req, res, next) => {
 router.delete('/:id', async (req, res, next) => {
   try {
     const { id } = req.params;
-    await projectManager.deleteProject(id);
+    await projectManagerDB.deleteProject(id, req.user.id, req.accessToken);
     res.json(successResponse({ success: true }));
   } catch (error) {
-    if (error.message.includes('not found')) {
-      return res.status(404).json(errorResponse(error.message, ErrorCodes.NOT_FOUND));
+    if (error.message.includes('not found') || error.message.includes('0 rows')) {
+      return res.status(404).json(errorResponse('Project not found', ErrorCodes.NOT_FOUND));
     }
-    next(error);
-  }
-});
-
-/**
- * Duplicate project
- * POST /api/v1/projects/:id/duplicate
- */
-router.post('/:id/duplicate', async (req, res, next) => {
-  try {
-    const { id } = req.params;
-    const { name } = req.body;
-    
-    const project = await projectManager.duplicateProject(id, name);
-    res.status(201).json(successResponse(project));
-  } catch (error) {
-    if (error.message.includes('not found')) {
-      return res.status(404).json(errorResponse(error.message, ErrorCodes.NOT_FOUND));
-    }
-    next(error);
-  }
-});
-
-/**
- * Export project
- * GET /api/v1/projects/:id/export
- */
-router.get('/:id/export', async (req, res, next) => {
-  try {
-    const { id } = req.params;
-    const exportData = await projectManager.exportProject(id);
-    res.json(successResponse(exportData));
-  } catch (error) {
-    if (error.message.includes('not found')) {
-      return res.status(404).json(errorResponse(error.message, ErrorCodes.NOT_FOUND));
-    }
-    next(error);
-  }
-});
-
-/**
- * Import project
- * POST /api/v1/projects/import
- */
-router.post('/import', async (req, res, next) => {
-  try {
-    const { project, files } = req.body;
-    
-    if (!project || !project.name) {
-      return res.status(400).json(
-        errorResponse('Project name is required', ErrorCodes.VALIDATION_ERROR)
-      );
-    }
-    
-    if (!files || !Array.isArray(files)) {
-      return res.status(400).json(
-        errorResponse('Files array is required', ErrorCodes.VALIDATION_ERROR)
-      );
-    }
-    
-    const importedProject = await projectManager.importProject({ project, files });
-    res.status(201).json(successResponse(importedProject));
-  } catch (error) {
     next(error);
   }
 });
 
 export default router;
-

@@ -1,14 +1,18 @@
 /**
- * Execute API Routes (v1)
+ * Execute API Routes (v1) - Database-backed with Optional Auth
  * Handles Logo code execution
  */
 
 import express from 'express';
-import * as projectManager from '../../projectManager.js';
+import * as projectManagerDB from '../../database/projectManagerDB.js';
 import { successResponse, errorResponse, ErrorCodes } from '../../utils/responseFormatter.js';
+import { optionalAuthMiddleware } from '../../middleware/auth.js';
 import { SHAPE_COMMANDS } from '../../shapeCommands.js';
 
 const router = express.Router();
+
+// Optional auth - allows both authenticated and anonymous execution
+router.use(optionalAuthMiddleware);
 
 // logo package uses CommonJS, so we need to use createRequire
 import { createRequire } from 'module';
@@ -248,6 +252,10 @@ function convertLogoCommands(logoCommands) {
 /**
  * Execute Logo code
  * POST /api/v1/execute
+ * Body: { code?, fileId?, projectId?, reset? }
+ * 
+ * - If fileId+projectId provided: load code from database (requires auth)
+ * - Otherwise: execute provided code directly (no auth needed)
  */
 router.post('/', async (req, res, next) => {
   try {
@@ -256,10 +264,16 @@ router.post('/', async (req, res, next) => {
     let codeToExecute = code;
     let fileInfo = null;
     
-    // If fileId is provided, load the file
+    // If fileId is provided, load the file from database
     if (fileId && projectId) {
+      if (!req.user) {
+        return res.status(401).json(
+          errorResponse('Authentication required to execute saved files', ErrorCodes.UNAUTHORIZED)
+        );
+      }
+      
       try {
-        fileInfo = await projectManager.getFile(projectId, fileId);
+        fileInfo = await projectManagerDB.getFile(fileId, projectId, req.user.id, req.accessToken);
         codeToExecute = fileInfo.content;
       } catch (error) {
         return res.status(404).json(
@@ -383,4 +397,3 @@ router.post('/', async (req, res, next) => {
 });
 
 export default router;
-
