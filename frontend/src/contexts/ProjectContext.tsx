@@ -29,7 +29,7 @@ interface ProjectContextType {
   loadFiles: (projectId: string) => Promise<void>;
   createFile: (name: string, path: string, content?: string) => Promise<File>;
   selectFile: (fileId: string) => Promise<void>;
-  updateFile: (fileId: string, content: string) => void; // In-memory update, not async
+  updateFile: (fileId: string, updates: { content?: string; name?: string; path?: string }) => void | Promise<void>; // In-memory or persist
   saveFile: (fileId: string, content?: string) => Promise<void>; // Optional content to save directly
   deleteFile: (fileId: string) => Promise<void>;
   closeFile: (fileId: string) => void;
@@ -168,6 +168,11 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
     }
   }, [currentProject]);
 
+  // Mark file as unsaved
+  const markFileUnsaved = useCallback((fileId: string) => {
+    setUnsavedFiles(prev => new Set(prev).add(fileId));
+  }, []);
+
   // Select file (load and open)
   const selectFile = useCallback(async (fileId: string) => {
     if (!currentProject) {
@@ -199,19 +204,41 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
     }
   }, [currentProject, openFiles]);
 
-  // Update file content (in-memory, marks as unsaved)
-  const updateFile = useCallback((fileId: string, content: string) => {
-    setFiles(prev => prev.map(f => 
-      f.id === fileId ? { ...f, content, lineCount: content.split('\n').length } : f
-    ));
-    setOpenFiles(prev => prev.map(f => 
-      f.id === fileId ? { ...f, content, lineCount: content.split('\n').length } : f
-    ));
-    if (currentFile?.id === fileId) {
-      setCurrentFile(prev => prev ? { ...prev, content, lineCount: content.split('\n').length } : null);
+  // Update file (in-memory or persist to backend)
+  const updateFile = useCallback(async (fileId: string, updates: { content?: string; name?: string; path?: string }) => {
+    // If only content, update in-memory
+    if (updates.content !== undefined && !updates.name && !updates.path) {
+      setFiles(prev => prev.map(f => 
+        f.id === fileId ? { ...f, content: updates.content!, lineCount: updates.content!.split('\n').length } : f
+      ));
+      setOpenFiles(prev => prev.map(f => 
+        f.id === fileId ? { ...f, content: updates.content!, lineCount: updates.content!.split('\n').length } : f
+      ));
+      if (currentFile?.id === fileId) {
+        setCurrentFile(prev => prev ? { ...prev, content: updates.content!, lineCount: updates.content!.split('\n').length } : null);
+      }
+      markFileUnsaved(fileId);
+    } else {
+      // If name/path, persist to backend
+      if (!currentProject) {
+        throw new Error('No project selected');
+      }
+      try {
+        setError(null);
+        const updated = await filesApi.update(currentProject.id, fileId, updates);
+        
+        setFiles(prev => prev.map(f => f.id === fileId ? updated : f));
+        setOpenFiles(prev => prev.map(f => f.id === fileId ? updated : f));
+        
+        if (currentFile?.id === fileId) {
+          setCurrentFile(updated);
+        }
+      } catch (err: any) {
+        setError(err.message || 'Failed to update file');
+        throw err;
+      }
     }
-    markFileUnsaved(fileId);
-  }, [currentFile]);
+  }, [currentFile, currentProject, markFileUnsaved]);
 
   // Save file to backend
   const saveFile = useCallback(async (fileId: string, contentToSave?: string) => {
@@ -300,127 +327,36 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
     });
   }, [currentFile]);
 
-  // Mark file as unsaved
-  const markFileUnsaved = useCallback((fileId: string) => {
-    setUnsavedFiles(prev => new Set(prev).add(fileId));
-  }, []);
-
   // Clear error
   const clearError = useCallback(() => {
     setError(null);
   }, []);
-
-  // Initialize default project and file on mount
+  // Load projects on mount (NO auto-selection - routing handles that)
   useEffect(() => {
     let isMounted = true;
     
-    const initializeDefault = async () => {
+    const initialize = async () => {
       try {
-        // Load existing projects
+        setLoading(true);
         const projectList = await projectsApi.list({ order: 'updatedAt.desc' });
         
         if (!isMounted) return;
         
         setProjects(projectList);
-        
-        // If no projects exist, create a default one
-        if (projectList.length === 0) {
-          const defaultProject = await projectsApi.create({ 
-            name: 'My First Project', 
-            description: 'Default project for Logo Web IDE' 
-          });
-          
-          if (!isMounted) return;
-          
-          setProjects([defaultProject]);
-          setCurrentProject(defaultProject);
-          
-          // Load files for the new project
-          const fileList = await filesApi.list(defaultProject.id, { order: 'path.asc' });
-          setFiles(fileList);
-          
-          // Create a default file
-          const defaultFile = await filesApi.create({
-            projectId: defaultProject.id,
-            name: 'main.logo',
-            path: 'main.logo',
-            content: `; Welcome to Logo Web IDE!
-; Try these commands:
-
-forward 100
-right 90
-forward 100
-right 90
-forward 100
-right 90
-forward 100
-
-; Or try a square procedure:
-; to square
-;   repeat 4 [forward 100 right 90]
-; end
-; square
-`,
-            language: 'logo'
-          });
-          
-          if (!isMounted) return;
-          
-          // Update files list and select the file
-          setFiles(prev => [...prev, defaultFile]);
-          setCurrentFile(defaultFile);
-          setOpenFiles([defaultFile]);
-        } else {
-          // If projects exist, select the most recent one
-          const mostRecent = projectList[0];
-          setCurrentProject(mostRecent);
-          
-          // Load files for the project
-          const fileList = await filesApi.list(mostRecent.id, { order: 'path.asc' });
-          
-          if (!isMounted) return;
-          
-          setFiles(fileList);
-          
-          if (fileList.length > 0) {
-            // Open the first file
-            const firstFile = fileList[0];
-            setCurrentFile(firstFile);
-            setOpenFiles([firstFile]);
-          } else {
-            // Create a default file if project has no files
-            const defaultFile = await filesApi.create({
-              projectId: mostRecent.id,
-              name: 'main.logo',
-              path: 'main.logo',
-              content: `; Welcome to Logo Web IDE!
-; Try these commands:
-
-forward 100
-right 90
-forward 100
-right 90
-forward 100
-right 90
-forward 100
-`,
-              language: 'logo'
-            });
-            
-            if (!isMounted) return;
-            
-            setFiles(prev => [...prev, defaultFile]);
-            setCurrentFile(defaultFile);
-            setOpenFiles([defaultFile]);
-          }
-        }
+        // Do NOT auto-select - let routing handle project selection
       } catch (error) {
-        console.error('Failed to initialize default project/file:', error);
-        setError('Failed to initialize. Please refresh the page.');
+        console.error('Failed to load projects:', error);
+        if (isMounted) {
+          setError('Failed to load projects. Please refresh the page.');
+        }
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+        }
       }
     };
     
-    initializeDefault();
+    initialize();
     
     return () => {
       isMounted = false;

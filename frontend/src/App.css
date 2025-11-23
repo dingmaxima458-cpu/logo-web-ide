@@ -12,6 +12,38 @@
   border-bottom: 1px solid #3e3e42;
   text-align: center;
   position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.back-to-launcher-button {
+  position: absolute;
+  left: 1rem;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: 1px solid #3e3e42;
+  color: #cccccc;
+  padding: 6px 12px;
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.2s;
+}
+
+.back-to-launcher-button:hover {
+  background-color: #2a2a2a;
+  border-color: #007acc;
+  color: #007acc;
+}
+
+.header-title {
+  flex: 1;
+  text-align: center;
 }
 
 .App-header h1 {
