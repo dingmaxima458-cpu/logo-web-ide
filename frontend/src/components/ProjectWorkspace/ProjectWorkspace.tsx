@@ -11,6 +11,7 @@ import Controls from '../Controls/Controls';
 import Console, { ConsoleMessage } from '../Console/Console';
 import ProjectExplorer from '../ProjectExplorer/ProjectExplorer';
 import FileTabs from '../FileTabs/FileTabs';
+import UserProfile from '../UserProfile/UserProfile';
 import { executeApi } from '../../services/api-v1';
 
 interface TurtleCommand {
@@ -52,7 +53,7 @@ const ProjectWorkspace: React.FC = () => {
       selectProject(projectId).catch((error) => {
         console.error('Failed to load project:', error);
         // Redirect back to launcher if project not found
-        navigate('/');
+        navigate('/launcher');
       });
     }
   }, [projectId, currentProject, selectProject, navigate]);
@@ -225,7 +226,7 @@ const ProjectWorkspace: React.FC = () => {
       <header className="App-header">
         <button 
           className="back-to-launcher-button"
-          onClick={() => navigate('/')}
+          onClick={() => navigate('/launcher')}
           title="Back to Project Launcher"
         >
           <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
@@ -239,6 +240,9 @@ const ProjectWorkspace: React.FC = () => {
         </div>
         <div className="current-project-indicator">
           {currentProject.name}
+        </div>
+        <div className="header-user-profile">
+          <UserProfile />
         </div>
       </header>
       

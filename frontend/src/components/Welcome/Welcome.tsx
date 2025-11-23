@@ -5,6 +5,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useProject } from '../../contexts/ProjectContext';
+import UserProfile from '../UserProfile/UserProfile';
 import './Welcome.css';
 
 const Welcome: React.FC = () => {
@@ -29,12 +30,15 @@ const Welcome: React.FC = () => {
   };
 
   const handleSelectProject = (projectId: string) => {
-    // Navigate to the project route
+    // Navigate to the project workspace
     navigate(`/project/${projectId}`);
   };
 
   return (
     <div className="welcome-launcher">
+      <div className="launcher-user-profile">
+        <UserProfile />
+      </div>
       <div className="launcher-content">
         {/* Hero Section */}
         <div className="launcher-hero">

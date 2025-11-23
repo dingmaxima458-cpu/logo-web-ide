@@ -4,6 +4,7 @@
 
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { projectsApi, filesApi, Project, File } from '../services/api-v1';
+import { useAuth } from './AuthContext';
 
 interface ProjectContextType {
   // Projects
@@ -42,6 +43,7 @@ interface ProjectContextType {
 const ProjectContext = createContext<ProjectContextType | undefined>(undefined);
 
 export function ProjectProvider({ children }: { children: React.ReactNode }) {
+  const { user } = useAuth(); // Get auth state
   const [projects, setProjects] = useState<Project[]>([]);
   const [currentProject, setCurrentProject] = useState<Project | null>(null);
   const [files, setFiles] = useState<File[]>([]);
@@ -331,8 +333,19 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
   const clearError = useCallback(() => {
     setError(null);
   }, []);
-  // Load projects on mount (NO auto-selection - routing handles that)
+  // Load projects only when user is authenticated
   useEffect(() => {
+    // Don't load projects if user is not authenticated
+    if (!user) {
+      setProjects([]);
+      setCurrentProject(null);
+      setFiles([]);
+      setCurrentFile(null);
+      setOpenFiles([]);
+      setUnsavedFiles(new Set());
+      return;
+    }
+
     let isMounted = true;
     
     const initialize = async () => {
@@ -361,7 +374,7 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
     return () => {
       isMounted = false;
     };
-  }, []); // Only run once on mount
+  }, [user]); // Re-run when user auth state changes
 
   const value: ProjectContextType = {
     projects,

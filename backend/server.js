@@ -3,7 +3,15 @@
  * Node.js/Express server with Logo interpreter integration
  */
 
+import dotenv from 'dotenv';
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
 import express from 'express';
+
+// Load environment variables from root .env file
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+dotenv.config({ path: join(__dirname, '..', '.env') });
 import cors from 'cors';
 import { WebSocketServer } from 'ws';
 import { createServer } from 'http';
@@ -20,14 +28,11 @@ import executeRouter from './api/v1/execute.js';
 // logo package uses CommonJS, so we need to use createRequire
 const require = createRequire(import.meta.url);
 const logo = require('logo');
-import { fileURLToPath } from 'url';
-import { dirname, join } from 'path';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
 
 const app = express();
-const PORT = process.env.PORT || 8000;
+const PORT = parseInt(process.env.PORT || '3001', 10);
+const HOST = process.env.HOST || '0.0.0.0';
+const WS_PORT = parseInt(process.env.WS_PORT || `${PORT + 1}`, 10);
 
 // Middleware
 // CORS configuration - allow EC2 and localhost
@@ -711,14 +716,17 @@ app.use(createErrorHandler());
 
 // Initialize storage and start server
 projectManager.initializeProjectStorage().then(() => {
-  // Listen on 0.0.0.0 to accept connections from any interface (needed for EC2)
-  server.listen(PORT, '0.0.0.0', () => {
-    console.log(`🚀 Logo Web IDE Backend running on http://0.0.0.0:${PORT}`);
-    console.log(`📡 WebSocket available at ws://0.0.0.0:${PORT}/ws/execute`);
+  server.listen(PORT, HOST, () => {
+    const displayHost = HOST === '0.0.0.0' ? 'localhost' : HOST;
+    const accessMode = HOST === '0.0.0.0' ? '(accessible from all network interfaces)' : '(localhost only)';
+    
+    console.log(`🚀 Logo Web IDE Backend running on http://${displayHost}:${PORT}`);
+    console.log(`   ${accessMode}`);
+    console.log(`📡 WebSocket available at ws://${displayHost}:${PORT}/ws/execute`);
     console.log(`📁 File storage initialized`);
     console.log(`📁 Project storage initialized`);
     console.log(`🔌 v1 API available at /api/v1/*`);
-    console.log(`🌐 Accessible from external IPs (EC2 compatible)`);
+    console.log(`⚙️  Environment: ${process.env.NODE_ENV || 'development'}`);
   });
 }).catch((error) => {
   console.error('Failed to start server:', error);

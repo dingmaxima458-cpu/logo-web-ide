@@ -1,0 +1,141 @@
+/* User Profile Component */
+.user-profile {
+  position: relative;
+}
+
+.user-profile-button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px 4px 4px;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  color: #cccccc;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.user-profile-button:hover {
+  background-color: #2a2a2a;
+  border-color: #3e3e42;
+}
+
+.user-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background-color: #007acc;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.user-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.user-avatar span {
+  font-size: 12px;
+  font-weight: 600;
+  color: white;
+}
+
+.user-name {
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.chevron {
+  transition: transform 0.2s;
+}
+
+.user-profile-button:hover .chevron {
+  transform: translateY(1px);
+}
+
+/* Dropdown Menu */
+.user-profile-menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 4px);
+  min-width: 220px;
+  background-color: #252526;
+  border: 1px solid #454545;
+  border-radius: 4px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+  z-index: 1000;
+  animation: slideDown 0.15s ease-out;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.menu-section {
+  padding: 8px;
+}
+
+.menu-user-info {
+  padding: 8px;
+}
+
+.menu-user-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: #ffffff;
+  margin-bottom: 4px;
+}
+
+.menu-user-email {
+  font-size: 12px;
+  color: #858585;
+}
+
+.menu-divider {
+  height: 1px;
+  background-color: #3e3e42;
+  margin: 4px 0;
+}
+
+.menu-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: none;
+  border: none;
+  border-radius: 3px;
+  color: #cccccc;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  text-align: left;
+}
+
+.menu-item:hover {
+  background-color: #094771;
+}
+
+.menu-item svg {
+  flex-shrink: 0;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .user-name {
+    display: none;
+  }
+}
+

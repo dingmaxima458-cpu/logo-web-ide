@@ -2,16 +2,24 @@
 .welcome-launcher {
   flex: 1;
   display: flex;
-  align-items: flex-start;
-  justify-content: center;
+  flex-direction: column;
   background-color: #1e1e1e;
-  padding: 40px;
   overflow-y: auto;
+  position: relative;
+}
+
+.launcher-user-profile {
+  position: absolute;
+  top: 20px;
+  right: 40px;
+  z-index: 100;
 }
 
 .launcher-content {
   max-width: 1000px;
   width: 100%;
+  padding: 40px;
+  margin: 0 auto;
 }
 
 /* Hero Section */
