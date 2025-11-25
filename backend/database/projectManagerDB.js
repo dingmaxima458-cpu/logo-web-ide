@@ -1,6 +1,7 @@
 /**
- * Database-backed Project Manager
- * Uses Supabase for metadata storage, filesystem for file content
+ * Database-backed Project Manager with Supabase Storage
+ * Uses Supabase for metadata + file content storage
+ * Local filesystem only used as temporary cache during active sessions
  */
 
 import { getSupabaseForUser } from './supabase.js';
@@ -12,33 +13,123 @@ import { dirname } from 'path';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-const PROJECTS_BASE_DIR = path.join(__dirname, '..', 'projects');
+// Temporary cache directory for active sessions
+const CACHE_DIR = path.join(__dirname, '..', '.cache', 'files');
+const STORAGE_BUCKET = process.env.STORAGE_BUCKET||'project-files';
 
 /**
- * Ensure projects directory exists
+ * Ensure cache directory exists
  */
 export async function initializeProjectStorage() {
   try {
-    await fs.mkdir(PROJECTS_BASE_DIR, { recursive: true });
-    console.log('✅ File storage initialized at:', PROJECTS_BASE_DIR);
+    await fs.mkdir(CACHE_DIR, { recursive: true });
+    console.log('✅ File cache initialized at:', CACHE_DIR);
+    console.log('📦 Using Supabase Storage bucket:', STORAGE_BUCKET);
   } catch (error) {
-    console.error('Failed to initialize file storage:', error);
+    console.error('Failed to initialize file cache:', error);
     throw error;
   }
 }
 
 /**
- * Get project directory path
+ * Get storage path for Supabase Storage
+ * Format: {userId}/{projectId}/{filePath}
  */
-function getProjectDir(projectId) {
-  return path.join(PROJECTS_BASE_DIR, projectId);
+function getStoragePath(userId, projectId, filePath) {
+  // Remove leading slash if present
+  const cleanPath = filePath.startsWith('/') ? filePath.substring(1) : filePath;
+  return `${userId}/${projectId}/${cleanPath}`;
 }
 
 /**
- * Get file path
+ * Get local cache path for temporary storage
  */
-function getFilePath(projectId, filePath) {
-  return path.join(PROJECTS_BASE_DIR, projectId, 'files', filePath);
+function getCachePath(userId, projectId, filePath) {
+  const cleanPath = filePath.startsWith('/') ? filePath.substring(1) : filePath;
+  return path.join(CACHE_DIR, userId, projectId, cleanPath);
+}
+
+/**
+ * Download file from Supabase Storage to local cache
+ */
+async function downloadToCache(supabase, storagePath, cachePath) {
+  try {
+    const { data, error } = await supabase.storage
+      .from(STORAGE_BUCKET)
+      .download(storagePath);
+    
+    if (error) {
+      // File doesn't exist in storage yet (new file)
+      return null;
+    }
+    
+    // Ensure cache directory exists
+    await fs.mkdir(path.dirname(cachePath), { recursive: true });
+    
+    // Write to cache
+    const arrayBuffer = await data.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+    await fs.writeFile(cachePath, buffer);
+    
+    return buffer.toString('utf-8');
+  } catch (error) {
+    console.warn('Failed to download from storage:', error);
+    return null;
+  }
+}
+
+/**
+ * Upload file from cache to Supabase Storage
+ */
+async function uploadFromCache(supabase, cachePath, storagePath) {
+  try {
+    const content = await fs.readFile(cachePath, 'utf-8');
+    const blob = new Blob([content], { type: 'text/plain' });
+    
+    const { error } = await supabase.storage
+      .from(STORAGE_BUCKET)
+      .upload(storagePath, blob, {
+        upsert: true,
+        contentType: 'text/plain'
+      });
+    
+    if (error) {
+      throw new Error(`Storage upload failed: ${error.message}`);
+    }
+    
+    return true;
+  } catch (error) {
+    console.error('Failed to upload to storage:', error);
+    throw error;
+  }
+}
+
+/**
+ * Delete file from Supabase Storage
+ */
+async function deleteFromStorage(supabase, storagePath) {
+  try {
+    const { error } = await supabase.storage
+      .from(STORAGE_BUCKET)
+      .remove([storagePath]);
+    
+    if (error) {
+      console.warn('Failed to delete from storage:', error);
+    }
+  } catch (error) {
+    console.warn('Failed to delete from storage:', error);
+  }
+}
+
+/**
+ * Clear local cache for a file
+ */
+async function clearCache(cachePath) {
+  try {
+    await fs.unlink(cachePath);
+  } catch (error) {
+    // Ignore if file doesn't exist
+  }
 }
 
 // ============================================================================
@@ -132,10 +223,7 @@ export async function createProject(userId, accessToken, projectData) {
     throw new Error(`Failed to create project: ${error.message}`);
   }
   
-  // Create project directory
-  const projectDir = getProjectDir(data.id);
-  await fs.mkdir(path.join(projectDir, 'files'), { recursive: true });
-  
+  // No need to create filesystem directories - using Supabase Storage
   return data;
 }
 
@@ -169,6 +257,22 @@ export async function updateProject(projectId, userId, accessToken, updates) {
 export async function deleteProject(projectId, userId, accessToken) {
   const supabase = getSupabaseForUser(accessToken);
   
+  // Get all files in project to delete from storage
+  const { data: files } = await supabase
+    .from('files')
+    .select('storage_path')
+    .eq('project_id', projectId);
+  
+  // Delete files from Supabase Storage
+  if (files && files.length > 0) {
+    const storagePaths = files.map(f => f.storage_path).filter(Boolean);
+    if (storagePaths.length > 0) {
+      await supabase.storage
+        .from(STORAGE_BUCKET)
+        .remove(storagePaths);
+    }
+  }
+  
   // Delete from database (will cascade to files due to FK constraint)
   const { error } = await supabase
     .from('projects')
@@ -180,12 +284,12 @@ export async function deleteProject(projectId, userId, accessToken) {
     throw new Error(`Failed to delete project: ${error.message}`);
   }
   
-  // Delete project directory
-  const projectDir = getProjectDir(projectId);
+  // Clear local cache
+  const cacheDir = path.join(CACHE_DIR, userId, projectId);
   try {
-    await fs.rm(projectDir, { recursive: true, force: true });
+    await fs.rm(cacheDir, { recursive: true, force: true });
   } catch (err) {
-    console.warn(`Failed to delete project directory ${projectDir}:`, err);
+    // Ignore cache cleanup errors
   }
   
   return { success: true };
@@ -237,19 +341,20 @@ export async function getFile(fileId, projectId, userId, accessToken) {
     throw new Error(`Failed to get file: ${error.message}`);
   }
   
-  // Read file content from filesystem
-  const filePath = getFilePath(projectId, data.path);
+  // Try to read from cache first
+  const cachePath = getCachePath(userId, projectId, data.path);
+  let content = null;
+  
   try {
-    const content = await fs.readFile(filePath, 'utf-8');
-    data.content = content;
+    content = await fs.readFile(cachePath, 'utf-8');
   } catch (err) {
-    if (err.code === 'ENOENT') {
-      data.content = '';
-    } else {
-      throw err;
+    // Not in cache, download from Supabase Storage
+    if (data.storage_path) {
+      content = await downloadToCache(supabase, data.storage_path, cachePath);
     }
   }
   
+  data.content = content || '';
   return data;
 }
 
@@ -264,6 +369,7 @@ export async function createFile(userId, accessToken, fileData) {
   
   const content = fileData.content || '';
   const lineCount = content.split('\n').length;
+  const storagePath = getStoragePath(userId, fileData.projectId, fileData.path);
   
   const { data, error } = await supabase
     .from('files')
@@ -272,7 +378,8 @@ export async function createFile(userId, accessToken, fileData) {
       name: fileData.name,
       path: fileData.path,
       language: fileData.language || 'logo',
-      line_count: lineCount
+      line_count: lineCount,
+      storage_path: storagePath
     })
     .select()
     .single();
@@ -281,10 +388,13 @@ export async function createFile(userId, accessToken, fileData) {
     throw new Error(`Failed to create file: ${error.message}`);
   }
   
-  // Write file content to filesystem
-  const filePath = getFilePath(fileData.projectId, data.path);
-  await fs.mkdir(path.dirname(filePath), { recursive: true });
-  await fs.writeFile(filePath, content, 'utf-8');
+  // Write to local cache
+  const cachePath = getCachePath(userId, fileData.projectId, data.path);
+  await fs.mkdir(path.dirname(cachePath), { recursive: true });
+  await fs.writeFile(cachePath, content, 'utf-8');
+  
+  // Upload to Supabase Storage
+  await uploadFromCache(supabase, cachePath, storagePath);
   
   data.content = content;
   return data;
@@ -305,7 +415,10 @@ export async function updateFile(fileId, projectId, userId, accessToken, updates
   const updateData = {};
   
   if (updates.name !== undefined) updateData.name = updates.name;
-  if (updates.path !== undefined) updateData.path = updates.path;
+  if (updates.path !== undefined) {
+    updateData.path = updates.path;
+    updateData.storage_path = getStoragePath(userId, projectId, updates.path);
+  }
   if (updates.language !== undefined) updateData.language = updates.language;
   
   // If content is being updated, calculate line count
@@ -327,22 +440,39 @@ export async function updateFile(fileId, projectId, userId, accessToken, updates
   
   // Handle file content update
   if (updates.content !== undefined) {
-    const filePath = getFilePath(projectId, data.path);
-    await fs.mkdir(path.dirname(filePath), { recursive: true });
-    await fs.writeFile(filePath, updates.content, 'utf-8');
+    // Write to cache
+    const cachePath = getCachePath(userId, projectId, data.path);
+    await fs.mkdir(path.dirname(cachePath), { recursive: true });
+    await fs.writeFile(cachePath, updates.content, 'utf-8');
+    
+    // Upload to Supabase Storage
+    await uploadFromCache(supabase, cachePath, data.storage_path);
+    
     data.content = updates.content;
   }
   
-  // Handle file path rename (move file on filesystem)
+  // Handle file path rename (move in storage)
   if (updates.path && updates.path !== currentFile.path) {
-    const oldPath = getFilePath(projectId, currentFile.path);
-    const newPath = getFilePath(projectId, updates.path);
+    const oldCachePath = getCachePath(userId, projectId, currentFile.path);
+    const newCachePath = getCachePath(userId, projectId, updates.path);
     
+    // Move in cache if exists
     try {
-      await fs.mkdir(path.dirname(newPath), { recursive: true });
-      await fs.rename(oldPath, newPath);
+      await fs.mkdir(path.dirname(newCachePath), { recursive: true });
+      await fs.rename(oldCachePath, newCachePath);
     } catch (err) {
-      console.warn('Failed to move file on filesystem:', err);
+      // If not in cache, download from old location
+      if (currentFile.storage_path) {
+        const content = await downloadToCache(supabase, currentFile.storage_path, newCachePath);
+        if (content) {
+          await uploadFromCache(supabase, newCachePath, data.storage_path);
+        }
+      }
+    }
+    
+    // Delete old file from storage
+    if (currentFile.storage_path) {
+      await deleteFromStorage(supabase, currentFile.storage_path);
     }
   }
   
@@ -358,6 +488,11 @@ export async function deleteFile(fileId, projectId, userId, accessToken) {
   // Verify project ownership and get file info
   const file = await getFile(fileId, projectId, userId, accessToken);
   
+  // Delete from Supabase Storage
+  if (file.storage_path) {
+    await deleteFromStorage(supabase, file.storage_path);
+  }
+  
   // Delete from database
   const { error } = await supabase
     .from('files')
@@ -369,13 +504,9 @@ export async function deleteFile(fileId, projectId, userId, accessToken) {
     throw new Error(`Failed to delete file: ${error.message}`);
   }
   
-  // Delete file from filesystem
-  const filePath = getFilePath(projectId, file.path);
-  try {
-    await fs.unlink(filePath);
-  } catch (err) {
-    console.warn(`Failed to delete file ${filePath}:`, err);
-  }
+  // Clear from cache
+  const cachePath = getCachePath(userId, projectId, file.path);
+  await clearCache(cachePath);
   
   return { success: true };
 }

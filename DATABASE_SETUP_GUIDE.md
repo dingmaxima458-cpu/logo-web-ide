@@ -33,7 +33,7 @@ A production-ready, database-backed authentication and project management system
 
 1. Go to your **Supabase Dashboard**
 2. Navigate to **SQL Editor**
-3. Open the file: `/Users/weicong/Desktop/devs/codingP/logoWeb/SUPABASE_SETUP.sql`
+3. Open the file: `SUPABASE_SETUP.sql`
 4. Copy the entire contents
 5. Paste into Supabase SQL Editor
 6. Click **"Run"**
@@ -45,6 +45,27 @@ This will create:
 - ✅ Row Level Security policies
 - ✅ Triggers for auto-updating timestamps
 - ✅ Helper functions and views
+
+### 1b. Set Up Supabase Storage
+
+**IMPORTANT**: After running the SQL schema, also set up Supabase Storage:
+
+1. **Create Storage Bucket**:
+   - Go to **Supabase Dashboard** > **Storage**
+   - Click **"Create a new bucket"**
+   - Name: `project-files`
+   - Public: **OFF**
+   - Click **"Create bucket"**
+
+2. **Run Storage Setup SQL**:
+   - Go to **SQL Editor**
+   - Open file: `SUPABASE_STORAGE_SETUP.sql`
+   - Copy and paste entire contents
+   - Click **"Run"**
+
+This creates storage RLS policies and the `storage_path` column.
+
+**See `STORAGE_MIGRATION_GUIDE.md` for detailed storage setup.**
 
 ### 2. Configure Environment Variables
 

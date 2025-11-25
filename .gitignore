@@ -11,9 +11,12 @@ frontend/dist/
 frontend/build/
 backend/dist/
 
-# File storage
+# File storage (old - deprecated)
 backend/files/
 backend/projects/
+
+# File cache (temporary session cache)
+backend/.cache/
 
 # Python (for future use if needed)
 venv/
