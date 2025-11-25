@@ -725,20 +725,25 @@ async function startServer() {
     // Initialize file storage directory
     await projectManagerDB.initializeProjectStorage();
     
-    // Start server
-    server.listen(PORT, HOST, () => {
-      const displayHost = HOST === '0.0.0.0' ? 'localhost' : HOST;
-      const accessMode = HOST === '0.0.0.0' ? '(accessible from all network interfaces)' : '(localhost only)';
-      
-      console.log(`🚀 Logo Web IDE Backend running on http://${displayHost}:${PORT}`);
-      console.log(`   ${accessMode}`);
-      console.log(`📡 WebSocket available at ws://${displayHost}:${PORT}/ws/execute`);
-      console.log(`💾 Database: Supabase (production) ${process.env.SUPABASE_URL ? '✅' : '⚠️  Not configured'}`);
-      console.log(`📁 File storage initialized`);
-      console.log(`🔌 v1 API available at /api/v1/*`);
-      console.log(`🔐 Auth middleware: Supabase JWT + Mock (dev)`);
-      console.log(`⚙️  Environment: ${process.env.NODE_ENV || 'development'}`);
-    });
+  // Start server
+  server.listen(PORT, HOST, () => {
+    if (HOST === '0.0.0.0') {
+      console.log(`🚀 Logo Web IDE Backend running on:`);
+      console.log(`   → Local:    http://localhost:${PORT}`);
+      console.log(`   → Network:  http://0.0.0.0:${PORT} (all interfaces)`);
+      console.log(`   → External: Use your server's public IP/DNS:${PORT}`);
+      console.log(`📡 WebSocket available at ws://your-server:${PORT}/ws/execute`);
+    } else {
+      console.log(`🚀 Logo Web IDE Backend running on http://${HOST}:${PORT}`);
+      console.log(`   (${HOST === '127.0.0.1' ? 'localhost only' : 'accessible externally'})`);
+      console.log(`📡 WebSocket available at ws://${HOST}:${PORT}/ws/execute`);
+    }
+    console.log(`💾 Database: Supabase (production) ${process.env.SUPABASE_URL ? '✅' : '⚠️  Not configured'}`);
+    console.log(`📁 File storage initialized`);
+    console.log(`🔌 v1 API available at /api/v1/*`);
+    console.log(`🔐 Auth middleware: Supabase JWT + Mock (dev)`);
+    console.log(`⚙️  Environment: ${process.env.NODE_ENV || 'development'}`);
+  });
   } catch (error) {
     console.error('❌ Failed to start server:', error);
     console.error('   Check your .env configuration, especially SUPABASE_URL and SUPABASE_ANON_KEY');
