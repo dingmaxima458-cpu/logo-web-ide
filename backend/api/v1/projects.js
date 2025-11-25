@@ -18,9 +18,14 @@ router.use(authMiddleware);
  */
 router.get('/', async (req, res, next) => {
   try {
+    console.log('[Projects] list request', {
+      userId: req.user?.id,
+      hasToken: Boolean(req.accessToken)
+    });
     const projects = await projectManagerDB.listProjects(req.user.id, req.accessToken);
     res.json(successResponse(projects, projects.length));
   } catch (error) {
+    console.error('[Projects] list failed', error);
     next(error);
   }
 });
