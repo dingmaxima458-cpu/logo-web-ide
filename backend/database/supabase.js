@@ -16,6 +16,18 @@ export function initializeSupabase() {
   const supabaseAnonKey = process.env.SUPABASE_ANON_KEY;
   const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
+  console.log('[Supabase Init] URL:', supabaseUrl);
+  console.log('[Supabase Init] Has anon key:', !!supabaseAnonKey);
+  console.log('[Supabase Init] Anon key length:', supabaseAnonKey?.length);
+  console.log('[Supabase Init] Has service key:', !!supabaseServiceKey);
+  console.log('[Supabase Init] Service key length:', supabaseServiceKey?.length);
+  console.log('[Supabase Init] Service key preview:', supabaseServiceKey ? supabaseServiceKey.substring(0, 20) + '...' : 'MISSING');
+  
+  // Verify keys are different
+  if (supabaseAnonKey === supabaseServiceKey) {
+    console.error('⚠️  WARNING: SUPABASE_SERVICE_ROLE_KEY is the same as ANON_KEY! This will not bypass RLS!');
+  }
+
   if (!supabaseUrl || !supabaseAnonKey) {
     throw new Error('Missing Supabase configuration. Please set SUPABASE_URL and SUPABASE_ANON_KEY in .env');
   }
@@ -31,6 +43,9 @@ export function initializeSupabase() {
         persistSession: false
       }
     });
+    console.log('✅ Supabase admin client initialized with service role key');
+  } else {
+    console.warn('⚠️  SUPABASE_SERVICE_ROLE_KEY not set - admin operations will fail!');
   }
 
   console.log('✅ Supabase database client initialized');
@@ -51,26 +66,14 @@ export function getSupabase() {
  * Get Supabase admin client (bypasses RLS)
  */
 export function getSupabaseAdmin() {
-  if (!supabaseAdmin) {
+  if (supabaseAdmin) {
+    return supabaseAdmin;
+  }
+
+  if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
     throw new Error('Supabase admin not initialized. Set SUPABASE_SERVICE_ROLE_KEY in .env');
   }
+
   return supabaseAdmin;
-}
-
-/**
- * Create a user-scoped Supabase client with auth token
- * This ensures RLS policies are enforced for the specific user
- */
-export function getSupabaseForUser(accessToken) {
-  const supabaseUrl = process.env.SUPABASE_URL;
-  const supabaseAnonKey = process.env.SUPABASE_ANON_KEY;
-
-  return createClient(supabaseUrl, supabaseAnonKey, {
-    global: {
-      headers: {
-        Authorization: `Bearer ${accessToken}`
-      }
-    }
-  });
 }
 

@@ -4,7 +4,7 @@
  * Local filesystem only used as temporary cache during active sessions
  */
 
-import { getSupabaseForUser } from './supabase.js';
+import { getSupabaseAdmin } from './supabase.js';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
@@ -15,7 +15,7 @@ const __dirname = dirname(__filename);
 
 // Temporary cache directory for active sessions
 const CACHE_DIR = path.join(__dirname, '..', '.cache', 'files');
-const STORAGE_BUCKET = process.env.STORAGE_BUCKET||'project-files';
+const STORAGE_BUCKET = process.env.STORAGE_BUCKET || 'project-files';
 
 /**
  * Ensure cache directory exists
@@ -139,14 +139,37 @@ async function clearCache(cachePath) {
 /**
  * List all projects for a user
  */
-export async function listProjects(userId, accessToken) {
-  const supabase = getSupabaseForUser(accessToken);
+export async function listProjects(userId) {
+  const supabase = getSupabaseAdmin();
   
+  console.log('[ProjectManagerDB] Querying projects for user:', userId);
+  console.log('[ProjectManagerDB] userId type:', typeof userId);
+  console.log('[ProjectManagerDB] Using admin client:', supabase ? 'YES' : 'NO');
+  
+  // First, try to get ALL projects to see if admin client works at all
+  const { data: allData, error: allError } = await supabase
+    .from('projects')
+    .select('*')
+    .limit(5);
+  
+  console.log('[ProjectManagerDB] ALL projects query (no filter):', { 
+    dataLength: allData?.length, 
+    error: allError?.message,
+    data: allData 
+  });
+  
+  // Now try with user_id filter
   const { data, error } = await supabase
     .from('projects')
     .select('*')
     .eq('user_id', userId)
     .order('updated_at', { ascending: false });
+  
+  console.log('[ProjectManagerDB] Filtered query result:', { 
+    dataLength: data?.length, 
+    error: error?.message,
+    data: data 
+  });
   
   if (error) {
     throw new Error(`Failed to list projects: ${error.message}`);
@@ -167,14 +190,16 @@ export async function listProjects(userId, accessToken) {
     })
   );
   
+  console.log('[ProjectManagerDB] Returning projects:', projectsWithCounts.length);
+  
   return projectsWithCounts;
 }
 
 /**
  * Get project by ID
  */
-export async function getProject(projectId, userId, accessToken, includeFiles = false) {
-  const supabase = getSupabaseForUser(accessToken);
+export async function getProject(projectId, userId, includeFiles = false) {
+  const supabase = getSupabaseAdmin();
   
   const { data, error } = await supabase
     .from('projects')
@@ -206,8 +231,8 @@ export async function getProject(projectId, userId, accessToken, includeFiles = 
 /**
  * Create a new project
  */
-export async function createProject(userId, accessToken, projectData) {
-  const supabase = getSupabaseForUser(accessToken);
+export async function createProject(userId, projectData) {
+  const supabase = getSupabaseAdmin();
   
   const { data, error } = await supabase
     .from('projects')
@@ -230,8 +255,8 @@ export async function createProject(userId, accessToken, projectData) {
 /**
  * Update project
  */
-export async function updateProject(projectId, userId, accessToken, updates) {
-  const supabase = getSupabaseForUser(accessToken);
+export async function updateProject(projectId, userId, updates) {
+  const supabase = getSupabaseAdmin();
   
   const { data, error } = await supabase
     .from('projects')
@@ -254,8 +279,8 @@ export async function updateProject(projectId, userId, accessToken, updates) {
 /**
  * Delete project
  */
-export async function deleteProject(projectId, userId, accessToken) {
-  const supabase = getSupabaseForUser(accessToken);
+export async function deleteProject(projectId, userId) {
+  const supabase = getSupabaseAdmin();
   
   // Get all files in project to delete from storage
   const { data: files } = await supabase
@@ -302,11 +327,11 @@ export async function deleteProject(projectId, userId, accessToken) {
 /**
  * List files in a project
  */
-export async function listFiles(projectId, userId, accessToken) {
-  const supabase = getSupabaseForUser(accessToken);
+export async function listFiles(projectId, userId) {
+  const supabase = getSupabaseAdmin();
   
   // Verify project ownership
-  await getProject(projectId, userId, accessToken);
+  await getProject(projectId, userId);
   
   const { data, error } = await supabase
     .from('files')
@@ -324,11 +349,11 @@ export async function listFiles(projectId, userId, accessToken) {
 /**
  * Get file by ID
  */
-export async function getFile(fileId, projectId, userId, accessToken) {
-  const supabase = getSupabaseForUser(accessToken);
+export async function getFile(fileId, projectId, userId) {
+  const supabase = getSupabaseAdmin();
   
   // Verify project ownership
-  await getProject(projectId, userId, accessToken);
+  await getProject(projectId, userId);
   
   const { data, error } = await supabase
     .from('files')
@@ -361,11 +386,11 @@ export async function getFile(fileId, projectId, userId, accessToken) {
 /**
  * Create a new file
  */
-export async function createFile(userId, accessToken, fileData) {
-  const supabase = getSupabaseForUser(accessToken);
+export async function createFile(userId, fileData) {
+  const supabase = getSupabaseAdmin();
   
   // Verify project ownership
-  await getProject(fileData.projectId, userId, accessToken);
+  await getProject(fileData.projectId, userId);
   
   const content = fileData.content || '';
   const lineCount = content.split('\n').length;
@@ -403,14 +428,14 @@ export async function createFile(userId, accessToken, fileData) {
 /**
  * Update file
  */
-export async function updateFile(fileId, projectId, userId, accessToken, updates) {
-  const supabase = getSupabaseForUser(accessToken);
+export async function updateFile(fileId, projectId, userId, updates) {
+  const supabase = getSupabaseAdmin();
   
   // Verify project ownership
-  await getProject(projectId, userId, accessToken);
+  await getProject(projectId, userId);
   
   // Get current file info
-  const currentFile = await getFile(fileId, projectId, userId, accessToken);
+  const currentFile = await getFile(fileId, projectId, userId);
   
   const updateData = {};
   
@@ -482,11 +507,11 @@ export async function updateFile(fileId, projectId, userId, accessToken, updates
 /**
  * Delete file
  */
-export async function deleteFile(fileId, projectId, userId, accessToken) {
-  const supabase = getSupabaseForUser(accessToken);
+export async function deleteFile(fileId, projectId, userId) {
+  const supabase = getSupabaseAdmin();
   
   // Verify project ownership and get file info
-  const file = await getFile(fileId, projectId, userId, accessToken);
+  const file = await getFile(fileId, projectId, userId);
   
   // Delete from Supabase Storage
   if (file.storage_path) {

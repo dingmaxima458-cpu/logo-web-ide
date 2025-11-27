@@ -26,7 +26,7 @@ router.get('/', async (req, res, next) => {
       );
     }
     
-    const files = await projectManagerDB.listFiles(projectId, req.user.id, req.accessToken);
+    const files = await projectManagerDB.listFiles(projectId, req.user.id);
     res.json(successResponse(files, files.length));
   } catch (error) {
     if (error.message.includes('not found') || error.message.includes('0 rows')) {
@@ -51,7 +51,7 @@ router.get('/:id', async (req, res, next) => {
       );
     }
     
-    const file = await projectManagerDB.getFile(id, projectId, req.user.id, req.accessToken);
+    const file = await projectManagerDB.getFile(id, projectId, req.user.id);
     res.json(successResponse(file));
   } catch (error) {
     if (error.message.includes('not found') || error.message.includes('0 rows')) {
@@ -76,7 +76,7 @@ router.post('/', async (req, res, next) => {
       );
     }
     
-    const file = await projectManagerDB.createFile(req.user.id, req.accessToken, {
+    const file = await projectManagerDB.createFile(req.user.id, {
       projectId,
       name: name.trim(),
       path: path.trim(),
@@ -121,7 +121,7 @@ router.put('/:id', async (req, res, next) => {
     if (path !== undefined) updates.path = path.trim();
     if (language !== undefined) updates.language = language;
     
-    const file = await projectManagerDB.updateFile(id, projectId, req.user.id, req.accessToken, updates);
+    const file = await projectManagerDB.updateFile(id, projectId, req.user.id, updates);
     res.json(successResponse(file));
   } catch (error) {
     if (error.message.includes('duplicate') || error.message.includes('unique')) {
@@ -151,7 +151,7 @@ router.delete('/:id', async (req, res, next) => {
       );
     }
     
-    await projectManagerDB.deleteFile(id, projectId, req.user.id, req.accessToken);
+    await projectManagerDB.deleteFile(id, projectId, req.user.id);
     res.json(successResponse({ success: true }));
   } catch (error) {
     if (error.message.includes('not found') || error.message.includes('0 rows')) {
@@ -187,7 +187,7 @@ router.patch('/:id/rename', async (req, res, next) => {
     const updates = { name: name.trim() };
     if (path !== undefined) updates.path = path.trim();
     
-    const file = await projectManagerDB.updateFile(id, projectId, req.user.id, req.accessToken, updates);
+    const file = await projectManagerDB.updateFile(id, projectId, req.user.id, updates);
     res.json(successResponse(file));
   } catch (error) {
     if (error.message.includes('duplicate') || error.message.includes('unique')) {

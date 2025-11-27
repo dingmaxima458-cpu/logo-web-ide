@@ -273,7 +273,7 @@ router.post('/', async (req, res, next) => {
       }
       
       try {
-        fileInfo = await projectManagerDB.getFile(fileId, projectId, req.user.id, req.accessToken);
+        fileInfo = await projectManagerDB.getFile(fileId, projectId, req.user.id);
         codeToExecute = fileInfo.content;
       } catch (error) {
         return res.status(404).json(

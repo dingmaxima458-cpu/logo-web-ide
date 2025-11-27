@@ -19,10 +19,9 @@ router.use(authMiddleware);
 router.get('/', async (req, res, next) => {
   try {
     console.log('[Projects] list request', {
-      userId: req.user?.id,
-      hasToken: Boolean(req.accessToken)
+      userId: req.user?.id
     });
-    const projects = await projectManagerDB.listProjects(req.user.id, req.accessToken);
+    const projects = await projectManagerDB.listProjects(req.user.id);
     res.json(successResponse(projects, projects.length));
   } catch (error) {
     console.error('[Projects] list failed', error);
@@ -39,7 +38,7 @@ router.get('/:id', async (req, res, next) => {
     const { id } = req.params;
     const includeFiles = req.query.includeFiles === 'true';
     
-    const project = await projectManagerDB.getProject(id, req.user.id, req.accessToken, includeFiles);
+    const project = await projectManagerDB.getProject(id, req.user.id, includeFiles);
     res.json(successResponse(project));
   } catch (error) {
     if (error.message.includes('not found') || error.message.includes('0 rows')) {
@@ -64,7 +63,7 @@ router.post('/', async (req, res, next) => {
       );
     }
     
-    const project = await projectManagerDB.createProject(req.user.id, req.accessToken, {
+    const project = await projectManagerDB.createProject(req.user.id, {
       name: name.trim(),
       description: description?.trim() || ''
     });
@@ -98,7 +97,7 @@ router.put('/:id', async (req, res, next) => {
       updates.description = description?.trim() || '';
     }
     
-    const project = await projectManagerDB.updateProject(id, req.user.id, req.accessToken, updates);
+    const project = await projectManagerDB.updateProject(id, req.user.id, updates);
     res.json(successResponse(project));
   } catch (error) {
     if (error.message.includes('not found') || error.message.includes('0 rows')) {
@@ -115,7 +114,7 @@ router.put('/:id', async (req, res, next) => {
 router.delete('/:id', async (req, res, next) => {
   try {
     const { id } = req.params;
-    await projectManagerDB.deleteProject(id, req.user.id, req.accessToken);
+    await projectManagerDB.deleteProject(id, req.user.id);
     res.json(successResponse({ success: true }));
   } catch (error) {
     if (error.message.includes('not found') || error.message.includes('0 rows')) {
