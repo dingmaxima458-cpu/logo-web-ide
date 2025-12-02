@@ -26,12 +26,52 @@ interface TurtleCommand {
   b?: number;
 }
 
+/**
+ * Empty State Component - Shows when no file is open
+ */
+const EmptyState: React.FC<{ hasFiles: boolean }> = ({ hasFiles }) => {
+  return (
+    <div className="empty-state">
+      <div className="empty-state-content">
+        <div className="empty-state-icon">
+          <svg width="120" height="120" viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg">
+            {/* Turtle body */}
+            <ellipse cx="60" cy="70" rx="35" ry="25" fill="#4CAF50" opacity="0.8"/>
+            {/* Turtle head */}
+            <ellipse cx="60" cy="45" rx="20" ry="18" fill="#4CAF50"/>
+            {/* Turtle shell pattern */}
+            <path d="M45 70 Q60 60 75 70 Q60 80 45 70" fill="#2E7D32" opacity="0.6"/>
+            <path d="M50 65 Q60 55 70 65 Q60 75 50 65" fill="#2E7D32" opacity="0.4"/>
+            {/* Eyes */}
+            <circle cx="55" cy="42" r="3" fill="#1B5E20"/>
+            <circle cx="65" cy="42" r="3" fill="#1B5E20"/>
+            {/* Legs */}
+            <ellipse cx="40" cy="80" rx="6" ry="10" fill="#4CAF50"/>
+            <ellipse cx="80" cy="80" rx="6" ry="10" fill="#4CAF50"/>
+            <ellipse cx="45" cy="90" rx="6" ry="10" fill="#4CAF50"/>
+            <ellipse cx="75" cy="90" rx="6" ry="10" fill="#4CAF50"/>
+          </svg>
+        </div>
+        <h2 className="empty-state-title">
+          {hasFiles ? 'No file open' : 'No files in project'}
+        </h2>
+        <p className="empty-state-description">
+          {hasFiles 
+            ? 'Select a file from the explorer to start editing, or create a new file.'
+            : 'Create your first file to start coding in Logo.'}
+        </p>
+      </div>
+    </div>
+  );
+};
+
 const ProjectWorkspace: React.FC = () => {
   const { projectId } = useParams<{ projectId: string }>();
   const navigate = useNavigate();
   const {
     currentProject,
     currentFile,
+    files,
     selectProject,
     updateFile: updateFileContent,
     saveFile,
@@ -46,17 +86,27 @@ const ProjectWorkspace: React.FC = () => {
   const lastFileIdRef = useRef<string | null>(null);
   const currentCodeRef = useRef<string>('');
   const currentFileIdRef = useRef<string | null>(null);
+  const lastSelectedProjectIdRef = useRef<string | null>(null);
 
   // Load project from URL
   useEffect(() => {
-    if (projectId && (!currentProject || currentProject.id !== projectId)) {
+    // Only select project if projectId changes and we haven't already selected it
+    if (projectId && lastSelectedProjectIdRef.current !== projectId) {
+      lastSelectedProjectIdRef.current = projectId;
       selectProject(projectId).catch((error) => {
         console.error('Failed to load project:', error);
+        // Reset ref on error so we can retry
+        lastSelectedProjectIdRef.current = null;
         // Redirect back to launcher if project not found
         navigate('/launcher');
       });
     }
-  }, [projectId, currentProject, selectProject, navigate]);
+    
+    // Reset ref when projectId becomes null (navigating away)
+    if (!projectId) {
+      lastSelectedProjectIdRef.current = null;
+    }
+  }, [projectId, selectProject, navigate]);
 
   // Update code when current file changes
   useEffect(() => {
@@ -74,9 +124,9 @@ const ProjectWorkspace: React.FC = () => {
         currentCodeRef.current = newContent;
       }
     } else {
-      const emptyContent = '; No file open. Create or open a file to start coding.';
-      setCode(emptyContent);
-      currentCodeRef.current = emptyContent;
+      // No file open - clear code state
+      setCode('');
+      currentCodeRef.current = '';
       currentFileIdRef.current = null;
       lastFileIdRef.current = null;
       isUserEditingRef.current = false;
@@ -255,21 +305,27 @@ const ProjectWorkspace: React.FC = () => {
         
         <div className="App-editor-panel">
           <FileTabs />
-          <CodeEditor
-            value={code}
-            onChange={handleCodeChange}
-            language="logo"
-          />
-          <Controls
-            onRun={handleRun}
-            onClear={handleClear}
-            onReset={handleReset}
-            isRunning={isRunning}
-          />
-          <Console 
-            messages={consoleMessages}
-            onClear={handleClear}
-          />
+          {currentFile ? (
+            <>
+              <CodeEditor
+                value={code}
+                onChange={handleCodeChange}
+                language="logo"
+              />
+              <Controls
+                onRun={handleRun}
+                onClear={handleClear}
+                onReset={handleReset}
+                isRunning={isRunning}
+              />
+              <Console 
+                messages={consoleMessages}
+                onClear={handleClear}
+              />
+            </>
+          ) : (
+            <EmptyState hasFiles={files.length > 0} />
+          )}
         </div>
         
         <div className="App-canvas-panel">

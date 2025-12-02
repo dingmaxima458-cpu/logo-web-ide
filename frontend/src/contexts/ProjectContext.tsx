@@ -81,6 +81,20 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  // Load files for a project
+  const loadFiles = useCallback(async (projectId: string) => {
+    try {
+      setError(null);
+      const fileList = await filesApi.list(projectId, { order: 'path.asc' });
+      setFiles(fileList);
+      return fileList;
+    } catch (err: any) {
+      setError(err.message || 'Failed to load files');
+      console.error('Failed to load files:', err);
+      return [];
+    }
+  }, []);
+
   // Select project
   const selectProject = useCallback(async (projectId: string) => {
     try {
@@ -88,18 +102,29 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
       setError(null);
       const project = await projectsApi.get(projectId);
       setCurrentProject(project);
-      await loadFiles(projectId);
+      
       // Clear current file and open files when switching projects
       setCurrentFile(null);
       setOpenFiles([]);
       setUnsavedFiles(new Set());
+      
+      // Load files for the project
+      const fileList = await loadFiles(projectId);
+      
+      // Auto-open first file if project has files
+      if (fileList && fileList.length > 0) {
+        // Open the first file
+        const firstFile = await filesApi.get(projectId, fileList[0].id);
+        setCurrentFile(firstFile);
+        setOpenFiles([firstFile]);
+      }
     } catch (err: any) {
       setError(err.message || 'Failed to load project');
       console.error('Failed to select project:', err);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [loadFiles]);
 
   // Update project
   const updateProject = useCallback(async (id: string, updates: Partial<Project>) => {
@@ -133,18 +158,6 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
       throw err;
     }
   }, [currentProject]);
-
-  // Load files for a project
-  const loadFiles = useCallback(async (projectId: string) => {
-    try {
-      setError(null);
-      const fileList = await filesApi.list(projectId, { order: 'path.asc' });
-      setFiles(fileList);
-    } catch (err: any) {
-      setError(err.message || 'Failed to load files');
-      console.error('Failed to load files:', err);
-    }
-  }, []);
 
   // Create new file
   const createFile = useCallback(async (name: string, path: string, content = '') => {

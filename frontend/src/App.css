@@ -46,6 +46,46 @@
   text-align: center;
 }
 
+/* Empty State Styles */
+.empty-state {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #1e1e1e;
+  color: #858585;
+  min-height: 400px;
+}
+
+.empty-state-content {
+  text-align: center;
+  max-width: 500px;
+  padding: 2rem;
+}
+
+.empty-state-icon {
+  margin-bottom: 1.5rem;
+  opacity: 0.6;
+}
+
+.empty-state-icon svg {
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
+}
+
+.empty-state-title {
+  font-size: 1.5rem;
+  font-weight: 400;
+  color: #cccccc;
+  margin: 0 0 0.5rem 0;
+}
+
+.empty-state-description {
+  font-size: 0.9rem;
+  color: #858585;
+  margin: 0;
+  line-height: 1.5;
+}
+
 .App-header h1 {
   font-size: 2rem;
   margin-bottom: 0.5rem;
