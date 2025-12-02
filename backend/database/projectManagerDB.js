@@ -79,7 +79,8 @@ async function downloadToCache(supabase, storagePath, cachePath) {
 }
 
 /**
- * Upload file from cache to Supabase Storage
+ * Upload file from cache to Supabase Storage (async, fire-and-forget)
+ * This is for eventual consistency across devices/sessions
  */
 async function uploadFromCache(supabase, cachePath, storagePath) {
   try {
@@ -94,14 +95,27 @@ async function uploadFromCache(supabase, cachePath, storagePath) {
       });
     
     if (error) {
-      throw new Error(`Storage upload failed: ${error.message}`);
+      console.warn(`[Storage] Async upload failed (non-blocking): ${error.message}`);
+      // Don't throw - this is async for eventual consistency
     }
     
     return true;
   } catch (error) {
-    console.error('Failed to upload to storage:', error);
-    throw error;
+    console.warn('[Storage] Async upload error (non-blocking):', error.message);
+    // Don't throw - this is async for eventual consistency
+    return false;
   }
+}
+
+/**
+ * Upload file from cache to Supabase Storage (async, fire-and-forget)
+ * Returns immediately without waiting for upload
+ */
+function uploadFromCacheAsync(supabase, cachePath, storagePath) {
+  // Fire and forget - don't await
+  uploadFromCache(supabase, cachePath, storagePath).catch(err => {
+    console.warn('[Storage] Background upload failed:', err.message);
+  });
 }
 
 /**
@@ -348,6 +362,8 @@ export async function listFiles(projectId, userId) {
 
 /**
  * Get file by ID
+ * Always prioritizes local cache (source of truth for active sessions)
+ * Only falls back to Supabase Storage if cache miss (for cross-device/session sync)
  */
 export async function getFile(fileId, projectId, userId) {
   const supabase = getSupabaseAdmin();
@@ -366,14 +382,14 @@ export async function getFile(fileId, projectId, userId) {
     throw new Error(`Failed to get file: ${error.message}`);
   }
   
-  // Try to read from cache first
+  // ALWAYS try cache first (local cache is source of truth for active sessions)
   const cachePath = getCachePath(userId, projectId, data.path);
   let content = null;
   
   try {
     content = await fs.readFile(cachePath, 'utf-8');
   } catch (err) {
-    // Not in cache, download from Supabase Storage
+    // Cache miss - download from Supabase Storage (for cross-device/session sync)
     if (data.storage_path) {
       content = await downloadToCache(supabase, data.storage_path, cachePath);
     }
@@ -413,13 +429,13 @@ export async function createFile(userId, fileData) {
     throw new Error(`Failed to create file: ${error.message}`);
   }
   
-  // Write to local cache
+  // Write to local cache first (source of truth for active sessions)
   const cachePath = getCachePath(userId, fileData.projectId, data.path);
   await fs.mkdir(path.dirname(cachePath), { recursive: true });
   await fs.writeFile(cachePath, content, 'utf-8');
   
-  // Upload to Supabase Storage
-  await uploadFromCache(supabase, cachePath, storagePath);
+  // Async upload to Supabase Storage (for eventual consistency across devices/sessions)
+  uploadFromCacheAsync(supabase, cachePath, storagePath);
   
   data.content = content;
   return data;
@@ -465,13 +481,13 @@ export async function updateFile(fileId, projectId, userId, updates) {
   
   // Handle file content update
   if (updates.content !== undefined) {
-    // Write to cache
+    // Write to cache first (source of truth for active sessions)
     const cachePath = getCachePath(userId, projectId, data.path);
     await fs.mkdir(path.dirname(cachePath), { recursive: true });
     await fs.writeFile(cachePath, updates.content, 'utf-8');
     
-    // Upload to Supabase Storage
-    await uploadFromCache(supabase, cachePath, data.storage_path);
+    // Async upload to Supabase Storage (for eventual consistency across devices/sessions)
+    uploadFromCacheAsync(supabase, cachePath, data.storage_path);
     
     data.content = updates.content;
   }

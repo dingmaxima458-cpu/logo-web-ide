@@ -135,6 +135,7 @@ const ProjectWorkspace: React.FC = () => {
     setConsoleMessages([]);
 
     try {
+      // Clear any pending auto-save
       if (saveTimeoutRef.current) {
         clearTimeout(saveTimeoutRef.current);
         saveTimeoutRef.current = null;
@@ -143,10 +144,12 @@ const ProjectWorkspace: React.FC = () => {
       const latestCode = currentCodeRef.current;
       updateFileContent(currentFile.id, { content: latestCode });
       
+      // Save to cache first (synchronous write to local cache)
+      // Backend will write to cache immediately, then async upload to Supabase
       try {
         isUserEditingRef.current = false;
         await saveFile(currentFile.id, latestCode);
-        await new Promise(resolve => setTimeout(resolve, 100));
+        // No delay needed - cache write is synchronous, execute reads from cache
       } catch (saveError: any) {
         console.error('Failed to save before running:', saveError);
         setConsoleMessages(prev => [...prev, {
@@ -158,6 +161,7 @@ const ProjectWorkspace: React.FC = () => {
         return;
       }
       
+      // Execute immediately - backend reads from cache (which we just wrote to)
       const response = await executeApi.execute({
         fileId: currentFile.id,
         projectId: currentProject.id,
