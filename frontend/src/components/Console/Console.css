@@ -2,12 +2,17 @@
   display: flex;
   flex-direction: column;
   background-color: #1e1e1e;
-  border-top: 1px solid #3e3e42;
-  height: 200px;
-  min-height: 150px;
-  max-height: 300px;
+  border-top: none; /* Border handled by split pane */
+  height: 100%;
+  width: 100%;
   font-family: 'Courier New', 'Consolas', 'Monaco', monospace;
   font-size: 0.85rem;
+}
+
+.console-controls-banner {
+  background-color: #252526;
+  border-bottom: 1px solid #3e3e42;
+  flex-shrink: 0;
 }
 
 .console-header {

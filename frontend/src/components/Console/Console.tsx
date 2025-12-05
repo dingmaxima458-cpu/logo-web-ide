@@ -1,4 +1,5 @@
 import React from 'react';
+import Controls from '../Controls/Controls';
 import './Console.css';
 
 export interface ConsoleMessage {
@@ -10,9 +11,12 @@ export interface ConsoleMessage {
 interface ConsoleProps {
   messages: ConsoleMessage[];
   onClear?: () => void;
+  onRun?: () => void;
+  onReset?: () => void;
+  isRunning?: boolean;
 }
 
-const Console: React.FC<ConsoleProps> = ({ messages, onClear }) => {
+const Console: React.FC<ConsoleProps> = ({ messages, onClear, onRun, onReset, isRunning }) => {
   const formatMessage = (msg: ConsoleMessage, index: number) => {
     const timestamp = msg.timestamp || new Date();
     const timeStr = timestamp.toLocaleTimeString();
@@ -30,6 +34,16 @@ const Console: React.FC<ConsoleProps> = ({ messages, onClear }) => {
 
   return (
     <div className="console-container">
+      {(onRun || onReset) && (
+        <div className="console-controls-banner">
+          <Controls
+            onRun={onRun || (() => {})}
+            onClear={onClear || (() => {})}
+            onReset={onReset || (() => {})}
+            isRunning={isRunning || false}
+          />
+        </div>
+      )}
       <div className="console-header">
         <span className="console-title">Console</span>
         {onClear && (

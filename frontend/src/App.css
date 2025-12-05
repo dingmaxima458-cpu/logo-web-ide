@@ -1,20 +1,22 @@
 .App {
-  min-height: 100vh;
+  height: 100vh;
   display: flex;
   flex-direction: column;
   background-color: #1e1e1e;
   color: #d4d4d4;
+  overflow: hidden;
 }
 
 .App-header {
   background-color: #252526;
-  padding: 1rem 2rem;
+  padding: 0.75rem 2rem 1rem 2rem;
   border-bottom: 1px solid #3e3e42;
-  text-align: center;
   position: relative;
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+  min-height: fit-content;
 }
 
 .back-to-launcher-button {
@@ -44,6 +46,12 @@
 .header-title {
   flex: 1;
   text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  margin: 0 1rem;
+  padding-top: 1.5rem;
 }
 
 /* Empty State Styles */
@@ -87,24 +95,35 @@
 }
 
 .App-header h1 {
-  font-size: 2rem;
-  margin-bottom: 0.5rem;
+  font-size: 1.75rem;
+  margin: 0;
   color: #4ec9b0;
 }
 
 .App-header p {
   color: #858585;
-  font-size: 0.9rem;
+  font-size: 0.85rem;
+  margin: 0;
+  margin-top: 0.25rem;
 }
 
 .current-project-indicator {
   position: absolute;
-  top: 50%;
+  top: 0.5rem;
   left: 50%;
-  transform: translate(-50%, -50%);
+  transform: translateX(-50%);
   color: #4ec9b0;
-  font-size: 0.9rem;
+  font-size: 0.8rem;
   font-weight: 500;
+  background-color: #252526;
+  padding: 0.2rem 0.6rem;
+  border-radius: 3px;
+  border: 1px solid #3e3e42;
+  white-space: nowrap;
+  max-width: 300px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  z-index: 1;
 }
 
 .header-user-profile {
@@ -114,26 +133,12 @@
   transform: translateY(-50%);
 }
 
+/* App-container styles are now handled by ProjectWorkspace.css with react-split */
 .App-container {
   display: flex;
   flex: 1;
   overflow: hidden;
-}
-
-.App-editor-panel {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  border-right: 1px solid #3e3e42;
-  min-width: 400px;
-  overflow: hidden;
-}
-
-.App-canvas-panel {
-  flex: 1;
-  display: flex;
-  background-color: #1e1e1e;
-  min-width: 400px;
+  height: 100%;
 }
 
 .error-message {

@@ -1,9 +1,10 @@
 .controls-container {
   display: flex;
   gap: 0.5rem;
-  padding: 1rem;
-  background-color: #252526;
-  border-top: 1px solid #3e3e42;
+  padding: 0.75rem 1rem;
+  background-color: transparent;
+  width: 100%;
+  align-items: center;
 }
 
 .control-button {

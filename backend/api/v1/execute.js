@@ -54,6 +54,184 @@ function expandExtendedCommands(code) {
 }
 
 /**
+ * Expand user-defined procedures inline (recursively)
+ * This works around the logo package bug where it doesn't execute commands after procedure definitions
+ * Handles nested/recursive procedure calls by expanding multiple passes
+ */
+function expandUserProcedures(code) {
+  const lines = code.split('\n');
+  const procedures = new Map(); // procedure name -> { params: [], body: [] }
+  const executionCode = [];
+  let inProcedure = false;
+  let currentProcedure = null;
+  let currentProcedureBody = [];
+  
+  // First pass: extract all procedure definitions
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const trimmed = line.trim();
+    const upperTrimmed = trimmed.toUpperCase();
+    
+    if (upperTrimmed.startsWith('TO ')) {
+      // Start of procedure definition
+      if (currentProcedure) {
+        // Save previous procedure
+        procedures.set(currentProcedure.name, {
+          params: currentProcedure.params,
+          body: currentProcedureBody
+        });
+      }
+      
+      // Parse procedure name and parameters
+      const match = trimmed.match(/^TO\s+(\w+)(?:\s+(.+))?$/i);
+      if (match) {
+        const procName = match[1].toUpperCase();
+        const paramStr = match[2] || '';
+        const params = paramStr.split(/\s+/).filter(p => p.startsWith(':')).map(p => p.substring(1).toUpperCase());
+        
+        currentProcedure = { name: procName, params };
+        currentProcedureBody = [];
+        inProcedure = true;
+      }
+    } else if (upperTrimmed === 'END' && inProcedure) {
+      // End of procedure definition
+      if (currentProcedure) {
+        procedures.set(currentProcedure.name, {
+          params: currentProcedure.params,
+          body: currentProcedureBody
+        });
+        currentProcedure = null;
+        currentProcedureBody = [];
+      }
+      inProcedure = false;
+    } else if (inProcedure) {
+      // Inside procedure body
+      currentProcedureBody.push(line);
+    } else {
+      // Execution code
+      executionCode.push(line);
+    }
+  }
+  
+  // If we ended while still in a procedure, save it
+  if (currentProcedure) {
+    procedures.set(currentProcedure.name, {
+      params: currentProcedure.params,
+      body: currentProcedureBody
+    });
+  }
+  
+  // If no procedures, return original code
+  if (procedures.size === 0) {
+    return code;
+  }
+  
+  // Function to expand a single procedure call
+  function expandProcedureCall(line, procName, procDef, args) {
+    // Expand the procedure call
+    let expandedBody = procDef.body.join('\n');
+    
+    // Replace parameters with actual arguments
+    // In Logo, parameters are defined with :param but referenced as param (without colon) in the body
+    for (let i = 0; i < procDef.params.length && i < args.length; i++) {
+      const paramName = procDef.params[i]; // e.g., "SIZE" (already uppercase, no colon)
+      const argValue = args[i]; // e.g., "50"
+      
+      // Replace :param (parameter definition) - though this shouldn't appear in body
+      const paramWithColonRegex = new RegExp(`:${paramName}\\b`, 'gi');
+      expandedBody = expandedBody.replace(paramWithColonRegex, argValue);
+      
+      // Replace param (variable reference in body) - this is the main case
+      // In Logo, parameters are referenced without colon: "size" not ":size"
+      // Need to replace whole words only, case-insensitive
+      const paramRegex = new RegExp(`\\b${paramName}\\b`, 'gi');
+      
+      // Split by lines to handle context-aware replacement
+      const bodyLines = expandedBody.split('\n');
+      const replacedLines = bodyLines.map(bodyLine => {
+        // Skip comment lines
+        const trimmed = bodyLine.trim();
+        if (trimmed.startsWith(';')) {
+          return bodyLine;
+        }
+        
+        // Replace parameter references (whole word only, case-insensitive)
+        // This handles "size", "SIZE", "Size" all being replaced with the argument value
+        return bodyLine.replace(paramRegex, (match) => {
+          // Preserve case of first letter if it's uppercase
+          if (match[0] === match[0].toUpperCase()) {
+            return argValue.charAt(0).toUpperCase() + argValue.slice(1);
+          }
+          return argValue;
+        });
+      });
+      
+      expandedBody = replacedLines.join('\n');
+    }
+    
+    return expandedBody;
+  }
+  
+  // Function to recursively expand all procedure calls in text (works on full text, not just lines)
+  function expandRecursively(text, maxDepth = 10) {
+    if (maxDepth <= 0) {
+      return text; // Prevent infinite recursion
+    }
+    
+    let result = text;
+    let changed = true;
+    let iterations = 0;
+    
+    // Keep expanding until no more procedure calls found
+    while (changed && iterations < 50) {
+      changed = false;
+      iterations++;
+      
+      // Try to expand each procedure call
+      for (const [procName, procDef] of procedures.entries()) {
+        // Match procedure call: PROCNAME arg1 arg2 ...
+        // Handle both "SQ 50" and "SQ size" (where size might be a variable)
+        const regex = new RegExp(`\\b${procName}\\s+([^\\n\\[\\]]*)`, 'gi');
+        let match;
+        
+        // Find all matches (process in reverse to preserve indices)
+        const matches = [];
+        while ((match = regex.exec(result)) !== null) {
+          matches.push({
+            fullMatch: match[0],
+            argsStr: match[1].trim(),
+            index: match.index
+          });
+        }
+        
+        // Process matches in reverse order (to preserve string indices)
+        for (let i = matches.length - 1; i >= 0; i--) {
+          const m = matches[i];
+          const args = m.argsStr.split(/\s+/).filter(a => a.length > 0);
+          
+          // Expand this procedure call
+          const expanded = expandProcedureCall(result, procName, procDef, args);
+          
+          // Replace the procedure call with expanded body
+          const before = result.substring(0, m.index);
+          const after = result.substring(m.index + m.fullMatch.length);
+          result = before + expanded + after;
+          changed = true;
+        }
+      }
+    }
+    
+    return result;
+  }
+  
+  // Expand procedure calls in execution code (recursively, on full text)
+  const executionText = executionCode.join('\n');
+  const result = expandRecursively(executionText);
+  
+  return result;
+}
+
+/**
  * Fully expand all extended commands inline
  */
 function fullyExpandExtendedCommands(code) {
@@ -300,9 +478,19 @@ router.post('/', async (req, res, next) => {
     
     const usesExtendedCommands = /\b(STAMPOVAL|STAMPCIRCLE|STAMPSQUARE|STAMPRECT|CIRCLE|SQUARE|RECTANGLE|TRIANGLE|OVAL)\s+[0-9]/i.test(codeWithoutComments);
     
+    // Check if user has defined their own procedures (TO ... END)
+    const hasUserProcedures = /\bTO\s+\w+/i.test(codeToExecute);
+    
+    // Expand user-defined procedures FIRST (before extended commands)
+    // This works around the logo package bug where it doesn't execute after procedure definitions
     let codeToConvert = codeToExecute;
+    if (hasUserProcedures) {
+      codeToConvert = expandUserProcedures(codeToExecute);
+    }
+    
+    // Then handle extended commands
     if (usesExtendedCommands) {
-      codeToConvert = expandExtendedCommands(codeToExecute);
+      codeToConvert = expandExtendedCommands(codeToConvert);
     }
     
     // Convert Logo code using the logo package
@@ -352,33 +540,123 @@ router.post('/', async (req, res, next) => {
         }
         
         // Check if logo.convert() only returned begin/end markers
+        // This happens when the logo package bug occurs: procedures are defined but commands after them don't execute
         const onlyMarkers = logoCommands && logoCommands.length === 2 && 
           logoCommands[0].begin && logoCommands[1].end;
         
-        if (onlyMarkers && usesExtendedCommands) {
-          // Fallback: expand ALL extended commands inline
-          const fullyExpanded = fullyExpandExtendedCommands(codeToExecute);
-          
-          logo.convert(fullyExpanded, (err2, logoCommands2) => {
-            if (err2) {
-              return res.json(successResponse({
-                success: false,
-                commands: [],
-                output: '',
-                error: err2.toString()
-              }));
+        if (onlyMarkers) {
+          // The logo package has a bug where it doesn't execute commands after procedure definitions
+          // If we have user procedures OR extended commands, we need to handle this
+          if (hasUserProcedures || usesExtendedCommands) {
+            // For extended commands, try full expansion
+            if (usesExtendedCommands) {
+              const fullyExpanded = fullyExpandExtendedCommands(codeToExecute);
+              
+              logo.convert(fullyExpanded, (err2, logoCommands2) => {
+                if (err2) {
+                  return res.json(successResponse({
+                    success: false,
+                    commands: [],
+                    output: '',
+                    error: err2.toString()
+                  }));
+                }
+                
+                const turtleCommands = convertLogoCommands(logoCommands2);
+                res.json(successResponse({
+                  success: true,
+                  commands: turtleCommands,
+                  output: '',
+                  error: ''
+                }));
+                resolve();
+              });
+              return;
+            } else {
+              // For user-defined procedures only, we need to restructure the code
+              // Split procedures from execution code, then combine them properly
+              const lines = codeToExecute.split('\n');
+              const procedures = [];
+              const executionCode = [];
+              let inProcedure = false;
+              let currentProcedure = [];
+              
+              for (const line of lines) {
+                const trimmed = line.trim();
+                if (trimmed.toUpperCase().startsWith('TO ')) {
+                  if (currentProcedure.length > 0) {
+                    procedures.push(currentProcedure.join('\n'));
+                  }
+                  currentProcedure = [line];
+                  inProcedure = true;
+                } else if (trimmed.toUpperCase() === 'END' && inProcedure) {
+                  currentProcedure.push(line);
+                  procedures.push(currentProcedure.join('\n'));
+                  currentProcedure = [];
+                  inProcedure = false;
+                } else if (inProcedure) {
+                  currentProcedure.push(line);
+                } else {
+                  executionCode.push(line);
+                }
+              }
+              
+              // Reconstruct: procedures first, then execution code
+              const restructuredCode = procedures.join('\n\n') + '\n\n' + executionCode.join('\n');
+              
+              // Try again with restructured code
+              logo.convert(restructuredCode, (err2, logoCommands2) => {
+                if (err2) {
+                  return res.json(successResponse({
+                    success: false,
+                    commands: [],
+                    output: '',
+                    error: `Failed to execute user-defined procedures: ${err2.toString()}`
+                  }));
+                }
+                
+                // Check again if we still only get markers
+                const stillOnlyMarkers = logoCommands2 && logoCommands2.length === 2 && 
+                  logoCommands2[0].begin && logoCommands2[1].end;
+                
+                if (stillOnlyMarkers) {
+                  // Last resort: expand user procedures inline
+                  const expandedWithProcedures = expandUserProcedures(codeToExecute);
+                  
+                  logo.convert(expandedWithProcedures, (err3, logoCommands3) => {
+                    if (err3) {
+                      return res.json(successResponse({
+                        success: false,
+                        commands: [],
+                        output: '',
+                        error: `Failed to execute procedures: ${err3.toString()}`
+                      }));
+                    }
+                    
+                    const turtleCommands = convertLogoCommands(logoCommands3);
+                    res.json(successResponse({
+                      success: true,
+                      commands: turtleCommands,
+                      output: '',
+                      error: ''
+                    }));
+                    resolve();
+                  });
+                  return;
+                }
+                
+                const turtleCommands = convertLogoCommands(logoCommands2);
+                res.json(successResponse({
+                  success: true,
+                  commands: turtleCommands,
+                  output: '',
+                  error: ''
+                }));
+                resolve();
+              });
+              return;
             }
-            
-            const turtleCommands = convertLogoCommands(logoCommands2);
-            res.json(successResponse({
-              success: true,
-              commands: turtleCommands,
-              output: '',
-              error: ''
-            }));
-            resolve();
-          });
-          return;
+          }
         }
         
         const turtleCommands = convertLogoCommands(logoCommands);

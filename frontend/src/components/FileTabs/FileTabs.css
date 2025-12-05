@@ -1,10 +1,13 @@
 .file-tabs {
   display: flex;
   background-color: #2d2d30;
-  border-bottom: 1px solid #3e3e42;
+  border-bottom: none; /* Border handled by split pane */
   overflow-x: auto;
   overflow-y: hidden;
+  height: 100%;
+  width: 100%;
   min-height: 35px;
+  align-items: stretch;
 }
 
 .file-tabs-empty {

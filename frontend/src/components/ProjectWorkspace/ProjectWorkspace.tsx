@@ -4,15 +4,16 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import Split from 'react-split';
 import { useProject } from '../../contexts/ProjectContext';
 import CodeEditor from '../CodeEditor/CodeEditor';
 import TurtleCanvas from '../Canvas/TurtleCanvas';
-import Controls from '../Controls/Controls';
 import Console, { ConsoleMessage } from '../Console/Console';
 import ProjectExplorer from '../ProjectExplorer/ProjectExplorer';
 import FileTabs from '../FileTabs/FileTabs';
 import UserProfile from '../UserProfile/UserProfile';
 import { executeApi } from '../../services/api-v1';
+import './ProjectWorkspace.css';
 
 interface TurtleCommand {
   type: string;
@@ -301,36 +302,61 @@ const ProjectWorkspace: React.FC = () => {
       </header>
       
       <div className="App-container">
-        <ProjectExplorer />
-        
-        <div className="App-editor-panel">
-          <FileTabs />
-          {currentFile ? (
-            <>
-              <CodeEditor
-                value={code}
-                onChange={handleCodeChange}
-                language="logo"
-              />
-              <Controls
-                onRun={handleRun}
-                onClear={handleClear}
-                onReset={handleReset}
-                isRunning={isRunning}
-              />
-              <Console 
-                messages={consoleMessages}
-                onClear={handleClear}
-              />
-            </>
-          ) : (
-            <EmptyState hasFiles={files.length > 0} />
-          )}
-        </div>
-        
-        <div className="App-canvas-panel">
-          <TurtleCanvas commands={commands} />
-        </div>
+        <Split
+          className="split-horizontal main-split"
+          direction="horizontal"
+          sizes={[15, 50, 35]}
+          minSize={[200, 300, 300]}
+          gutterSize={4}
+          snapOffset={0}
+        >
+          <div className="split-pane explorer-pane">
+            <ProjectExplorer />
+          </div>
+          
+          <div className="split-pane editor-pane">
+            <Split
+              className="split-vertical editor-split"
+              direction="vertical"
+              sizes={[5, 70, 25]}
+              minSize={[40, 100, 150]}
+              gutterSize={4}
+              snapOffset={0}
+            >
+              <div className="split-pane filetabs-pane">
+                <FileTabs />
+              </div>
+              
+              <div className="split-pane codeeditor-pane">
+                {currentFile ? (
+                  <CodeEditor
+                    value={code}
+                    onChange={handleCodeChange}
+                    language="logo"
+                  />
+                ) : (
+                  <EmptyState hasFiles={files.length > 0} />
+                )}
+              </div>
+              
+              <div className="split-pane console-pane">
+                {currentFile && (
+                  <Console 
+                    messages={consoleMessages}
+                    onClear={handleClear}
+                    onRun={handleRun}
+                    onReset={handleReset}
+                    isRunning={isRunning}
+                  />
+                )}
+              </div>
+            </Split>
+          </div>
+          
+          <div className="split-pane canvas-pane">
+            <TurtleCanvas commands={commands} />
+          </div>
+        </Split>
       </div>
     </>
   );
