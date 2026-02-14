@@ -94,5 +94,50 @@ TO STAMPSQUARE :size
     LT 90
   ]
 END
+
+; Draw an arc (partial circle)
+TO ARC :radius :angle
+  LOCAL "steps "i "stepAngle
+  MAKE "steps ABS :angle / 6
+  IF :steps < 1 [MAKE "steps 1]
+  MAKE "stepAngle :angle / :steps
+  REPEAT :steps [
+    FD :radius * 6.28318 / 360 * :stepAngle
+    RT :stepAngle
+  ]
+END
+
+; Draw a regular polygon
+TO POLYGON :sides :size
+  LOCAL "angle
+  MAKE "angle 360 / :sides
+  REPEAT :sides [
+    FD :size
+    RT :angle
+  ]
+END
+
+; Draw a spiral
+TO SPIRAL :turns :radius
+  LOCAL "i "currentRadius "stepRadius
+  MAKE "stepRadius :radius / (:turns * 60)
+  REPEAT :turns * 60 [
+    MAKE "i REPCOUNT
+    MAKE "currentRadius :stepRadius * :i
+    FD :currentRadius * 6.28318 / 60
+    RT 6
+  ]
+END
+
+; Draw a star
+TO STAR :points :size
+  LOCAL "i "angle "turnAngle
+  MAKE "angle 360 / :points
+  MAKE "turnAngle 180 - :angle
+  REPEAT :points [
+    FD :size
+    RT :turnAngle
+  ]
+END
 `;
 

@@ -6,10 +6,13 @@ interface CodeEditorProps {
   value: string;
   onChange: (value: string) => void;
   language?: string;
+  editorRef?: React.RefObject<any>; // Expose editor ref to parent
 }
 
-const CodeEditor: React.FC<CodeEditorProps> = ({ value, onChange, language = 'logo' }) => {
-  const editorRef = useRef<any>(null);
+const CodeEditor: React.FC<CodeEditorProps> = ({ value, onChange, language = 'logo', editorRef: externalEditorRef }) => {
+  const internalEditorRef = useRef<any>(null);
+  // Use external ref if provided, otherwise use internal ref
+  const editorRef = externalEditorRef ?? internalEditorRef;
   const isInternalUpdateRef = useRef(false);
   const lastValueRef = useRef<string>(value);
 
@@ -29,7 +32,10 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ value, onChange, language = 'lo
   }, [value]);
 
   const handleEditorDidMount = (editor: any, monaco: Monaco) => {
-    editorRef.current = editor;
+    // Set the ref (either internal or external)
+    if (editorRef) {
+      editorRef.current = editor;
+    }
     lastValueRef.current = value;
   };
 

@@ -12,6 +12,7 @@ import Console, { ConsoleMessage } from '../Console/Console';
 import ProjectExplorer from '../ProjectExplorer/ProjectExplorer';
 import FileTabs from '../FileTabs/FileTabs';
 import UserProfile from '../UserProfile/UserProfile';
+import CommandReference from '../CommandReference/CommandReference';
 import { executeApi } from '../../services/api-v1';
 import './ProjectWorkspace.css';
 
@@ -88,6 +89,8 @@ const ProjectWorkspace: React.FC = () => {
   const currentCodeRef = useRef<string>('');
   const currentFileIdRef = useRef<string | null>(null);
   const lastSelectedProjectIdRef = useRef<string | null>(null);
+  const saveInProgressRef = useRef<Map<string, Promise<void>>>(new Map()); // Track saves in progress by fileId
+  const monacoEditorRef = useRef<any>(null); // Ref to Monaco editor instance
 
   // Load project from URL
   useEffect(() => {
@@ -109,9 +112,11 @@ const ProjectWorkspace: React.FC = () => {
     }
   }, [projectId, selectProject, navigate]);
 
-  // Update code when current file changes
+  // Update code ONLY when file ID changes (switching files), NOT when content updates
+  // This prevents editor refresh when user is typing or when save completes
   useEffect(() => {
     if (currentFile) {
+      // Only update editor if file ID changed (user switched files)
       if (currentFile.id !== lastFileIdRef.current) {
         const newContent = currentFile.content || '';
         setCode(newContent);
@@ -119,11 +124,9 @@ const ProjectWorkspace: React.FC = () => {
         currentFileIdRef.current = currentFile.id;
         lastFileIdRef.current = currentFile.id;
         isUserEditingRef.current = false;
-      } else if (!isUserEditingRef.current) {
-        const newContent = currentFile.content || '';
-        setCode(newContent);
-        currentCodeRef.current = newContent;
       }
+      // DO NOT update editor if same file - user might be editing
+      // Editor content is the source of truth while editing
     } else {
       // No file open - clear code state
       setCode('');
@@ -132,7 +135,7 @@ const ProjectWorkspace: React.FC = () => {
       lastFileIdRef.current = null;
       isUserEditingRef.current = false;
     }
-  }, [currentFile]);
+  }, [currentFile?.id]); // Only depend on file ID, not the entire currentFile object
 
   const handleCodeChange = useCallback((newCode: string) => {
     isUserEditingRef.current = true;
@@ -149,16 +152,70 @@ const ProjectWorkspace: React.FC = () => {
     }
     
     saveTimeoutRef.current = setTimeout(async () => {
-      const codeToSave = currentCodeRef.current;
       const fileId = currentFileIdRef.current;
       
       if (!fileId) return;
       
+      // CRITICAL: Get code directly from Monaco editor to avoid race conditions
+      // Monaco's onChange might not have fired yet if user is actively typing
+      let codeToSave: string;
+      if (monacoEditorRef.current) {
+        // Get the absolute latest value from Monaco editor
+        codeToSave = monacoEditorRef.current.getValue() || '';
+        // Update ref to keep it in sync
+        currentCodeRef.current = codeToSave;
+      } else {
+        // Fallback to ref if editor not available
+        codeToSave = currentCodeRef.current;
+      }
+      
+      // Check if a save is already in progress for this file
+      const existingSave = saveInProgressRef.current.get(fileId);
+      if (existingSave) {
+        // Wait for existing save to complete, then save with latest code
+        try {
+          await existingSave;
+        } catch (err) {
+          // Ignore errors from previous save, we'll try again
+        }
+        // Re-check code from Monaco in case it changed during the wait
+        let latestCode: string;
+        if (monacoEditorRef.current) {
+          latestCode = monacoEditorRef.current.getValue() || '';
+          currentCodeRef.current = latestCode;
+        } else {
+          latestCode = currentCodeRef.current;
+        }
+        
+        if (latestCode !== codeToSave) {
+          // Code changed, save the latest version
+          const savePromise = saveFile(fileId, latestCode);
+          saveInProgressRef.current.set(fileId, savePromise);
+          try {
+            await savePromise;
+            isUserEditingRef.current = false;
+          } catch (error: any) {
+            console.error('Auto-save failed:', error);
+          } finally {
+            saveInProgressRef.current.delete(fileId);
+          }
+        } else {
+          // Same code, no need to save again
+          isUserEditingRef.current = false;
+        }
+        return;
+      }
+      
+      // No save in progress, proceed with save
+      const savePromise = saveFile(fileId, codeToSave);
+      saveInProgressRef.current.set(fileId, savePromise);
       try {
-        await saveFile(fileId, codeToSave);
+        await savePromise;
         isUserEditingRef.current = false;
       } catch (error: any) {
         console.error('Auto-save failed:', error);
+      } finally {
+        saveInProgressRef.current.delete(fileId);
       }
     }, 2000);
   }, [currentFile, updateFileContent, saveFile]);
@@ -192,14 +249,43 @@ const ProjectWorkspace: React.FC = () => {
         saveTimeoutRef.current = null;
       }
       
-      const latestCode = currentCodeRef.current;
+      // CRITICAL: Get code directly from Monaco editor to avoid race conditions
+      // Monaco's onChange might not have fired yet if user is actively typing
+      let latestCode: string;
+      if (monacoEditorRef.current) {
+        // Get the absolute latest value from Monaco editor
+        latestCode = monacoEditorRef.current.getValue() || '';
+        // Update ref to keep it in sync
+        currentCodeRef.current = latestCode;
+      } else {
+        // Fallback to ref if editor not available
+        latestCode = currentCodeRef.current;
+      }
+      
+      // Update in-memory state
       updateFileContent(currentFile.id, { content: latestCode });
       
       // Save to cache first (synchronous write to local cache)
       // Backend will write to cache immediately, then async upload to Supabase
       try {
         isUserEditingRef.current = false;
-        await saveFile(currentFile.id, latestCode);
+        
+        // Check if a save is already in progress for this file
+        const existingSave = saveInProgressRef.current.get(currentFile.id);
+        if (existingSave) {
+          // Wait for existing save to complete first
+          try {
+            await existingSave;
+          } catch (err) {
+            // If previous save failed, continue with our save
+            console.warn('Previous save failed, continuing with new save:', err);
+          }
+        }
+        
+        // Now save with the latest code
+        const savePromise = saveFile(currentFile.id, latestCode);
+        saveInProgressRef.current.set(currentFile.id, savePromise);
+        await savePromise;
         // No delay needed - cache write is synchronous, execute reads from cache
       } catch (saveError: any) {
         console.error('Failed to save before running:', saveError);
@@ -210,6 +296,9 @@ const ProjectWorkspace: React.FC = () => {
         }]);
         setIsRunning(false);
         return;
+      } finally {
+        // Clean up save tracking
+        saveInProgressRef.current.delete(currentFile.id);
       }
       
       // Execute immediately - backend reads from cache (which we just wrote to)
@@ -333,6 +422,7 @@ const ProjectWorkspace: React.FC = () => {
                     value={code}
                     onChange={handleCodeChange}
                     language="logo"
+                    editorRef={monacoEditorRef}
                   />
                 ) : (
                   <EmptyState hasFiles={files.length > 0} />
@@ -358,6 +448,8 @@ const ProjectWorkspace: React.FC = () => {
           </div>
         </Split>
       </div>
+      
+      <CommandReference />
     </>
   );
 };

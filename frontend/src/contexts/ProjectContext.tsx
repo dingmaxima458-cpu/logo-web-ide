@@ -52,6 +52,9 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
   const [unsavedFiles, setUnsavedFiles] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  
+  // Track saves in progress to prevent concurrent saves of the same file
+  const savePromisesRef = React.useRef<Map<string, Promise<void>>>(new Map());
 
   // Load all projects
   const loadProjects = useCallback(async () => {
@@ -229,8 +232,15 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
       setOpenFiles(prev => prev.map(f => 
         f.id === fileId ? { ...f, content: updates.content!, lineCount: updates.content!.split('\n').length } : f
       ));
+      // DO NOT update currentFile.content here - it would trigger editor refresh
+      // Editor is the source of truth while user is editing
+      // Only update metadata silently if needed
       if (currentFile?.id === fileId) {
-        setCurrentFile(prev => prev ? { ...prev, content: updates.content!, lineCount: updates.content!.split('\n').length } : null);
+        // Update lineCount but don't change content reference to avoid editor refresh
+        setCurrentFile(prev => prev && prev.id === fileId ? { 
+          ...prev, 
+          lineCount: updates.content!.split('\n').length 
+        } : prev);
       }
       markFileUnsaved(fileId);
     } else {
@@ -261,6 +271,17 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
       throw new Error('No project selected');
     }
     
+    // Check if a save is already in progress for this file
+    const existingSave = savePromisesRef.current.get(fileId);
+    if (existingSave) {
+      // Wait for existing save to complete, then proceed with new save
+      try {
+        await existingSave;
+      } catch (err) {
+        // Previous save failed, continue with new save
+      }
+    }
+    
     // Use provided content, or get from state
     let content = contentToSave;
     if (content === undefined) {
@@ -271,20 +292,27 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
       content = file.content || '';
     }
     
-    try {
-      setError(null);
-      // Save to backend with the content
-      const updated = await filesApi.update(currentProject.id, fileId, {
-        content: content
-      });
-      
-      // Update all state with the saved version from backend
+    // Create save promise and track it
+    const savePromise = (async () => {
+      try {
+        setError(null);
+        // Save to backend with the content
+        const updated = await filesApi.update(currentProject.id, fileId, {
+          content: content
+        });
+        
+      // Update files and openFiles state (for file list/explorer)
       setFiles(prev => prev.map(f => f.id === fileId ? updated : f));
       setOpenFiles(prev => prev.map(f => f.id === fileId ? updated : f));
       
-      // Update currentFile to sync with backend
+      // DO NOT update currentFile here - it would trigger editor refresh
+      // Editor content is the source of truth while user is editing
+      // Only update currentFile if it's not the same file (shouldn't happen, but safety check)
       if (currentFile?.id === fileId) {
-        setCurrentFile(updated);
+        // Update currentFile silently without triggering editor refresh
+        // We update the content in memory but don't change the reference unnecessarily
+        // The editor already has the correct content (we just saved it)
+        setCurrentFile(prev => prev && prev.id === fileId ? { ...prev, ...updated } : prev);
       }
       
       // Remove from unsaved
@@ -293,9 +321,20 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
         next.delete(fileId);
         return next;
       });
-    } catch (err: any) {
-      setError(err.message || 'Failed to save file');
-      throw err;
+      } catch (err: any) {
+        setError(err.message || 'Failed to save file');
+        throw err;
+      }
+    })();
+    
+    // Track this save promise
+    savePromisesRef.current.set(fileId, savePromise);
+    
+    try {
+      await savePromise;
+    } finally {
+      // Remove from tracking when done (success or failure)
+      savePromisesRef.current.delete(fileId);
     }
   }, [currentProject, openFiles, files, currentFile]);
 

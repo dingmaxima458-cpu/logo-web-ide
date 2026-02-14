@@ -1,0 +1,220 @@
+.command-reference {
+  position: fixed;
+  top: 60px;
+  right: 20px;
+  width: 320px;
+  max-height: calc(100vh - 80px);
+  background: #1e1e1e;
+  border: 1px solid #3e3e3e;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  z-index: 1000;
+  transition: all 0.3s ease;
+  overflow: hidden;
+}
+
+.command-reference-toggle {
+  width: 100%;
+  padding: 12px 16px;
+  background: #252526;
+  border: none;
+  border-bottom: 1px solid #3e3e3e;
+  color: #cccccc;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  transition: background 0.2s;
+}
+
+.command-reference-toggle:hover {
+  background: #2d2d30;
+}
+
+.command-reference-icon {
+  font-size: 18px;
+}
+
+.command-reference-title {
+  flex: 1;
+  text-align: left;
+}
+
+.command-reference-arrow {
+  font-size: 12px;
+  color: #858585;
+}
+
+.command-reference-content {
+  max-height: calc(100vh - 140px);
+  overflow-y: auto;
+  background: #1e1e1e;
+}
+
+.command-reference-content::-webkit-scrollbar {
+  width: 8px;
+}
+
+.command-reference-content::-webkit-scrollbar-track {
+  background: #1e1e1e;
+}
+
+.command-reference-content::-webkit-scrollbar-thumb {
+  background: #424242;
+  border-radius: 4px;
+}
+
+.command-reference-content::-webkit-scrollbar-thumb:hover {
+  background: #4e4e4e;
+}
+
+.command-reference-header {
+  padding: 16px;
+  border-bottom: 1px solid #3e3e3e;
+  background: #252526;
+}
+
+.command-reference-header h3 {
+  margin: 0 0 4px 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: #ffffff;
+}
+
+.command-reference-subtitle {
+  margin: 0;
+  font-size: 12px;
+  color: #858585;
+}
+
+.command-reference-groups {
+  padding: 8px;
+}
+
+.command-group {
+  margin-bottom: 8px;
+  border: 1px solid #3e3e3e;
+  border-radius: 6px;
+  background: #252526;
+  overflow: hidden;
+}
+
+.command-group-header {
+  width: 100%;
+  padding: 10px 12px;
+  background: #2d2d30;
+  border: none;
+  color: #cccccc;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 13px;
+  font-weight: 600;
+  transition: background 0.2s;
+}
+
+.command-group-header:hover {
+  background: #37373d;
+}
+
+.command-group-title {
+  flex: 1;
+  text-align: left;
+}
+
+.command-group-arrow {
+  font-size: 10px;
+  color: #858585;
+  margin-left: 8px;
+}
+
+.command-group-commands {
+  padding: 8px;
+  background: #1e1e1e;
+}
+
+.command-item {
+  padding: 12px;
+  margin-bottom: 8px;
+  background: #252526;
+  border: 1px solid #3e3e3e;
+  border-radius: 4px;
+}
+
+.command-item:last-child {
+  margin-bottom: 0;
+}
+
+.command-name-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+  flex-wrap: wrap;
+}
+
+.command-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: #4ec9b0;
+  background: #1e1e1e;
+  padding: 2px 6px;
+  border-radius: 3px;
+  border: 1px solid #3e3e3e;
+}
+
+.command-aliases {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.command-alias {
+  font-size: 12px;
+  color: #858585;
+  background: #1e1e1e;
+  padding: 2px 6px;
+  border-radius: 3px;
+  border: 1px solid #3e3e3e;
+}
+
+.command-description {
+  margin: 6px 0;
+  font-size: 12px;
+  color: #cccccc;
+  line-height: 1.4;
+}
+
+.command-syntax,
+.command-example {
+  margin-top: 8px;
+  font-size: 11px;
+}
+
+.syntax-label,
+.example-label {
+  color: #858585;
+  margin-right: 6px;
+  font-weight: 500;
+}
+
+.command-syntax code,
+.command-example code {
+  color: #ce9178;
+  background: #1e1e1e;
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-family: 'Courier New', 'Consolas', 'Monaco', monospace;
+  font-size: 11px;
+  border: 1px solid #3e3e3e;
+}
+
+/* Responsive: hide on small screens */
+@media (max-width: 1200px) {
+  .command-reference {
+    display: none;
+  }
+}

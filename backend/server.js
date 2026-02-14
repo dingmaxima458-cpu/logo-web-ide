@@ -87,6 +87,45 @@ app.use((req, res, next) => {
 
 // Expand simple extended command calls to inline Logo code
 // Complex commands (STAMPOVAL, STAMPCIRCLE, etc.) still need procedure definitions
+/**
+ * Normalize pen commands - convert "pen up" to "penup" and "pen down" to "pendown"
+ * This ensures the logo package can properly parse these commands
+ */
+function normalizePenCommands(code) {
+  let normalized = code;
+  
+  // Replace "pen up" (case-insensitive) with "penup"
+  normalized = normalized.replace(/\bpen\s+up\b/gi, 'penup');
+  
+  // Replace "pen down" (case-insensitive) with "pendown"
+  normalized = normalized.replace(/\bpen\s+down\b/gi, 'pendown');
+  
+  return normalized;
+}
+
+/**
+ * Normalize movement commands - convert full words to standard Logo abbreviations
+ * This ensures the logo package can properly parse these commands
+ */
+function normalizeMovementCommands(code) {
+  let normalized = code;
+  
+  // Replace "backward" or "back" with "BK" (Logo standard)
+  normalized = normalized.replace(/\bbackward\s+(\S+)/gi, 'BK $1');
+  normalized = normalized.replace(/\bback\s+(\S+)/gi, 'BK $1');
+  
+  // Replace "forward" with "FD" (Logo standard)
+  normalized = normalized.replace(/\bforward\s+(\S+)/gi, 'FD $1');
+  
+  // Replace "right" with "RT" (Logo standard)
+  normalized = normalized.replace(/\bright\s+(\S+)/gi, 'RT $1');
+  
+  // Replace "left" with "LT" (Logo standard)
+  normalized = normalized.replace(/\bleft\s+(\S+)/gi, 'LT $1');
+  
+  return normalized;
+}
+
 function expandExtendedCommands(code) {
   let expanded = code;
   
@@ -116,9 +155,9 @@ function expandExtendedCommands(code) {
     return `REPEAT 2 [FD ${width} RT 90 FD ${height} RT 90]`;
   });
   
-  // For complex commands (STAMPOVAL, STAMPCIRCLE, STAMPSQUARE, OVAL), we need procedures
+  // For complex commands (STAMPOVAL, STAMPCIRCLE, STAMPSQUARE, OVAL, ARC, POLYGON, SPIRAL, STAR), we need procedures
   // Check if any of these are used
-  const needsProcedures = /\b(STAMPOVAL|STAMPCIRCLE|STAMPSQUARE|OVAL)\s+[0-9]/i.test(expanded);
+  const needsProcedures = /\b(STAMPOVAL|STAMPCIRCLE|STAMPSQUARE|OVAL|ARC|POLYGON|SPIRAL|STAR)\s+[0-9]/i.test(expanded);
   
   if (needsProcedures) {
     // Prepend procedure definitions, but structure code to force execution
@@ -246,6 +285,62 @@ function fullyExpandExtendedCommands(code) {
     return result.trim();
   });
   
+  // ARC - partial circle (angle in degrees, e.g., 180 = semicircle)
+  expanded = expanded.replace(/\bARC\s+(\S+)\s+(\S+)/gi, (match, radius, angle) => {
+    const r = parseFloat(radius) || 10;
+    const a = parseFloat(angle) || 90;
+    const steps = Math.max(1, Math.floor(Math.abs(a) / 6));
+    const stepAngle = a / steps;
+    const circumference = r * 2 * Math.PI;
+    const arcLength = circumference * (Math.abs(a) / 360);
+    const stepDist = arcLength / steps;
+    let result = '';
+    for (let i = 0; i < steps; i++) {
+      result += `FD ${stepDist.toFixed(3)} RT ${stepAngle.toFixed(2)} `;
+    }
+    return result.trim();
+  });
+  
+  // POLYGON - n-sided regular polygon
+  expanded = expanded.replace(/\bPOLYGON\s+(\S+)\s+(\S+)/gi, (match, sides, size) => {
+    const s = parseFloat(sides) || 4;
+    const sz = parseFloat(size) || 50;
+    const angle = 360 / s;
+    let result = '';
+    for (let i = 0; i < s; i++) {
+      result += `FD ${sz} RT ${angle} `;
+    }
+    return result.trim();
+  });
+  
+  // SPIRAL - spiral pattern
+  expanded = expanded.replace(/\bSPIRAL\s+(\S+)\s+(\S+)/gi, (match, turns, radius) => {
+    const t = parseFloat(turns) || 2;
+    const r = parseFloat(radius) || 50;
+    const totalSteps = Math.floor(t * 60);
+    const stepRadius = r / totalSteps;
+    let result = '';
+    for (let i = 1; i <= totalSteps; i++) {
+      const currentRadius = stepRadius * i;
+      const stepDist = (currentRadius * 2 * Math.PI) / 60;
+      result += `FD ${stepDist.toFixed(3)} RT 6 `;
+    }
+    return result.trim();
+  });
+  
+  // STAR - star shape
+  expanded = expanded.replace(/\bSTAR\s+(\S+)\s+(\S+)/gi, (match, points, size) => {
+    const p = parseFloat(points) || 5;
+    const sz = parseFloat(size) || 50;
+    const angle = 360 / p;
+    const turnAngle = 180 - angle;
+    let result = '';
+    for (let i = 0; i < p; i++) {
+      result += `FD ${sz} RT ${turnAngle} `;
+    }
+    return result.trim();
+  });
+  
   return expanded;
 }
 
@@ -260,8 +355,24 @@ function convertLogoCommands(logoCommands) {
     console.log('[convertLogoCommands] Processing', logoCommands.length, 'commands');
     logoCommands.forEach((cmd, index) => {
       console.log(`[convertLogoCommands] Command ${index}:`, JSON.stringify(cmd));
-      // Handle move command: {"move": [distance]}
-      if (cmd.move && Array.isArray(cmd.move) && cmd.move.length > 0) {
+      // CRITICAL: Process pen commands FIRST before movement commands
+      // This ensures pen state is correct when movement occurs
+      if (cmd.penup || cmd.pu) {
+        penDown = false;
+        turtleCommands.push({
+          type: 'pen',
+          down: false
+        });
+      }
+      else if (cmd.pendown || cmd.pd) {
+        penDown = true;
+        turtleCommands.push({
+          type: 'pen',
+          down: true
+        });
+      }
+      // Then process movement commands (which depend on pen state)
+      else if (cmd.move && Array.isArray(cmd.move) && cmd.move.length > 0) {
         const distance = cmd.move[0];
         const angleRad = (angle * Math.PI) / 180;
         x += distance * Math.cos(angleRad);
@@ -280,21 +391,6 @@ function convertLogoCommands(logoCommands) {
         turtleCommands.push({
           type: 'turn',
           angle: angle
-        });
-      }
-      // Handle pen commands
-      else if (cmd.penup || cmd.pu) {
-        penDown = false;
-        turtleCommands.push({
-          type: 'pen',
-          down: false
-        });
-      }
-      else if (cmd.pendown || cmd.pd) {
-        penDown = true;
-        turtleCommands.push({
-          type: 'pen',
-          down: true
         });
       }
       // Handle setposition/setxy command: {"setposition": [x, y]}
@@ -453,21 +549,26 @@ app.post('/api/execute', async (req, res) => {
     
     // Check for actual command calls (not procedure definitions)
     // Look for patterns like "SQUARE 50" or "CIRCLE 100" (command with argument)
-    const usesExtendedCommands = /\b(STAMPOVAL|STAMPCIRCLE|STAMPSQUARE|STAMPRECT|CIRCLE|SQUARE|RECTANGLE|TRIANGLE|OVAL)\s+[0-9]/i.test(codeWithoutComments);
+    const usesExtendedCommands = /\b(STAMPOVAL|STAMPCIRCLE|STAMPSQUARE|STAMPRECT|CIRCLE|SQUARE|RECTANGLE|TRIANGLE|OVAL|ARC|POLYGON|SPIRAL|STAR)\s+[0-9]/i.test(codeWithoutComments);
     console.log('[Server] Uses extended commands:', usesExtendedCommands);
     console.log('[Server] Code without comments (first 200 chars):', codeWithoutComments.substring(0, 200));
     
     // IMPORTANT: The logo package has a bug where it doesn't execute commands after procedure definitions
     // Solution: Instead of prepending procedure definitions, we'll expand extended command calls inline
-    let codeToConvert = codeToExecute;
+    // Normalize commands first (convert "pen up" to "penup", "backward" to "BK", etc.)
+    let codeToConvert = normalizePenCommands(codeToExecute);
+    codeToConvert = normalizeMovementCommands(codeToConvert);
     if (usesExtendedCommands) {
       console.log('[Server] Expanding extended commands inline...');
       // Expand extended command calls to their basic Logo equivalents
-      codeToConvert = expandExtendedCommands(codeToExecute);
+      codeToConvert = expandExtendedCommands(codeToConvert);
       console.log('[Server] Expanded code length:', codeToConvert.length);
     } else {
       console.log('[Server] Not using extended commands, executing code directly');
     }
+    // Normalize commands again after expansions
+    codeToConvert = normalizePenCommands(codeToConvert);
+    codeToConvert = normalizeMovementCommands(codeToConvert);
 
     console.log('[Server] Code to convert length:', codeToConvert.length);
     console.log('[Server] Code to convert preview (first 500 chars):', codeToConvert.substring(0, 500));
@@ -628,10 +729,15 @@ wss.on('connection', (ws) => {
       const usesExtendedCommands = /\b(STAMPOVAL|STAMPCIRCLE|STAMPSQUARE|CIRCLE|SQUARE|RECTANGLE|TRIANGLE|OVAL)\s+[0-9]/i.test(codeWithoutComments);
       
       // Only prepend shape commands if they're actually CALLED
-      let codeToConvert = code;
+      // Normalize commands first
+      let codeToConvert = normalizePenCommands(code);
+      codeToConvert = normalizeMovementCommands(codeToConvert);
       if (usesExtendedCommands) {
-        codeToConvert = SHAPE_COMMANDS + '\n' + code;
+        codeToConvert = SHAPE_COMMANDS + '\n' + codeToConvert;
       }
+      // Normalize commands again after prepending
+      codeToConvert = normalizePenCommands(codeToConvert);
+      codeToConvert = normalizeMovementCommands(codeToConvert);
       
       // Convert Logo code
       logo.convert(codeToConvert, (err, logoCommands) => {

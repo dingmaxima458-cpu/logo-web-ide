@@ -50,12 +50,17 @@ const TurtleCanvas: React.FC<TurtleCanvasProps> = ({ commands }) => {
 
       ctx.save();
       ctx.translate(x, y);
-      ctx.rotate((-angle * Math.PI) / 180); // Convert to radians and rotate
+      // Logo angle: 90 = facing up, 0 = facing right, 180 = facing down, 270 = facing left
+      // Canvas rotation: positive = clockwise, negative = counterclockwise
+      // Triangle is drawn pointing up (moveTo(0, -10))
+      // To align: when angle is 90 (up), rotation should be 0
+      // Formula: (90 - angle) converts Logo angle to canvas rotation
+      ctx.rotate(((90 - angle) * Math.PI) / 180);
 
-      // Draw turtle as a triangle
+      // Draw turtle as a triangle pointing up initially
       ctx.fillStyle = '#4ec9b0';
       ctx.beginPath();
-      ctx.moveTo(0, -10 * scale);
+      ctx.moveTo(0, -10 * scale); // Point up
       ctx.lineTo(-5 * scale, 5 * scale);
       ctx.lineTo(5 * scale, 5 * scale);
       ctx.closePath();

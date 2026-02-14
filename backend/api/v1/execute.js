@@ -20,6 +20,45 @@ const require = createRequire(import.meta.url);
 const logo = require('logo');
 
 /**
+ * Normalize pen commands - convert "pen up" to "penup" and "pen down" to "pendown"
+ * This ensures the logo package can properly parse these commands
+ */
+function normalizePenCommands(code) {
+  let normalized = code;
+  
+  // Replace "pen up" (case-insensitive) with "penup"
+  normalized = normalized.replace(/\bpen\s+up\b/gi, 'penup');
+  
+  // Replace "pen down" (case-insensitive) with "pendown"
+  normalized = normalized.replace(/\bpen\s+down\b/gi, 'pendown');
+  
+  return normalized;
+}
+
+/**
+ * Normalize movement commands - convert full words to standard Logo abbreviations
+ * This ensures the logo package can properly parse these commands
+ */
+function normalizeMovementCommands(code) {
+  let normalized = code;
+  
+  // Replace "backward" or "back" with "BK" (Logo standard)
+  normalized = normalized.replace(/\bbackward\s+(\S+)/gi, 'BK $1');
+  normalized = normalized.replace(/\bback\s+(\S+)/gi, 'BK $1');
+  
+  // Replace "forward" with "FD" (Logo standard)
+  normalized = normalized.replace(/\bforward\s+(\S+)/gi, 'FD $1');
+  
+  // Replace "right" with "RT" (Logo standard)
+  normalized = normalized.replace(/\bright\s+(\S+)/gi, 'RT $1');
+  
+  // Replace "left" with "LT" (Logo standard)
+  normalized = normalized.replace(/\bleft\s+(\S+)/gi, 'LT $1');
+  
+  return normalized;
+}
+
+/**
  * Expand extended commands inline
  */
 function expandExtendedCommands(code) {
@@ -45,7 +84,7 @@ function expandExtendedCommands(code) {
     return `REPEAT 2 [FD ${width} RT 90 FD ${height} RT 90]`;
   });
   
-  const needsProcedures = /\b(STAMPOVAL|STAMPCIRCLE|STAMPSQUARE|OVAL)\s+[0-9]/i.test(expanded);
+  const needsProcedures = /\b(STAMPOVAL|STAMPCIRCLE|STAMPSQUARE|OVAL|ARC|POLYGON|SPIRAL|STAR)\s+[0-9]/i.test(expanded);
   if (needsProcedures) {
     expanded = SHAPE_COMMANDS + '\n' + expanded;
   }
@@ -311,6 +350,62 @@ function fullyExpandExtendedCommands(code) {
     return result.trim();
   });
   
+  // ARC - partial circle (angle in degrees, e.g., 180 = semicircle)
+  expanded = expanded.replace(/\bARC\s+(\S+)\s+(\S+)/gi, (match, radius, angle) => {
+    const r = parseFloat(radius) || 10;
+    const a = parseFloat(angle) || 90;
+    const steps = Math.max(1, Math.floor(Math.abs(a) / 6));
+    const stepAngle = a / steps;
+    const circumference = r * 2 * Math.PI;
+    const arcLength = circumference * (Math.abs(a) / 360);
+    const stepDist = arcLength / steps;
+    let result = '';
+    for (let i = 0; i < steps; i++) {
+      result += `FD ${stepDist.toFixed(3)} RT ${stepAngle.toFixed(2)} `;
+    }
+    return result.trim();
+  });
+  
+  // POLYGON - n-sided regular polygon
+  expanded = expanded.replace(/\bPOLYGON\s+(\S+)\s+(\S+)/gi, (match, sides, size) => {
+    const s = parseFloat(sides) || 4;
+    const sz = parseFloat(size) || 50;
+    const angle = 360 / s;
+    let result = '';
+    for (let i = 0; i < s; i++) {
+      result += `FD ${sz} RT ${angle} `;
+    }
+    return result.trim();
+  });
+  
+  // SPIRAL - spiral pattern
+  expanded = expanded.replace(/\bSPIRAL\s+(\S+)\s+(\S+)/gi, (match, turns, radius) => {
+    const t = parseFloat(turns) || 2;
+    const r = parseFloat(radius) || 50;
+    const totalSteps = Math.floor(t * 60);
+    const stepRadius = r / totalSteps;
+    let result = '';
+    for (let i = 1; i <= totalSteps; i++) {
+      const currentRadius = stepRadius * i;
+      const stepDist = (currentRadius * 2 * Math.PI) / 60;
+      result += `FD ${stepDist.toFixed(3)} RT 6 `;
+    }
+    return result.trim();
+  });
+  
+  // STAR - star shape
+  expanded = expanded.replace(/\bSTAR\s+(\S+)\s+(\S+)/gi, (match, points, size) => {
+    const p = parseFloat(points) || 5;
+    const sz = parseFloat(size) || 50;
+    const angle = 360 / p;
+    const turnAngle = 180 - angle;
+    let result = '';
+    for (let i = 0; i < p; i++) {
+      result += `FD ${sz} RT ${turnAngle} `;
+    }
+    return result.trim();
+  });
+  
   return expanded;
 }
 
@@ -324,7 +419,24 @@ function convertLogoCommands(logoCommands) {
 
   if (logoCommands && Array.isArray(logoCommands)) {
     logoCommands.forEach((cmd) => {
-      if (cmd.move && Array.isArray(cmd.move) && cmd.move.length > 0) {
+      // CRITICAL: Process pen commands FIRST before movement commands
+      // This ensures pen state is correct when movement occurs
+      if (cmd.penup || cmd.pu) {
+        penDown = false;
+        turtleCommands.push({
+          type: 'pen',
+          down: false
+        });
+      }
+      else if (cmd.pendown || cmd.pd) {
+        penDown = true;
+        turtleCommands.push({
+          type: 'pen',
+          down: true
+        });
+      }
+      // Then process movement commands (which depend on pen state)
+      else if (cmd.move && Array.isArray(cmd.move) && cmd.move.length > 0) {
         const distance = cmd.move[0];
         const angleRad = (angle * Math.PI) / 180;
         x += distance * Math.cos(angleRad);
@@ -342,20 +454,6 @@ function convertLogoCommands(logoCommands) {
         turtleCommands.push({
           type: 'turn',
           angle: angle
-        });
-      }
-      else if (cmd.penup || cmd.pu) {
-        penDown = false;
-        turtleCommands.push({
-          type: 'pen',
-          down: false
-        });
-      }
-      else if (cmd.pendown || cmd.pd) {
-        penDown = true;
-        turtleCommands.push({
-          type: 'pen',
-          down: true
         });
       }
       else if (cmd.setposition && Array.isArray(cmd.setposition) && cmd.setposition.length >= 2) {
@@ -476,22 +574,29 @@ router.post('/', async (req, res, next) => {
       })
       .join('\n');
     
-    const usesExtendedCommands = /\b(STAMPOVAL|STAMPCIRCLE|STAMPSQUARE|STAMPRECT|CIRCLE|SQUARE|RECTANGLE|TRIANGLE|OVAL)\s+[0-9]/i.test(codeWithoutComments);
+    const usesExtendedCommands = /\b(STAMPOVAL|STAMPCIRCLE|STAMPSQUARE|STAMPRECT|CIRCLE|SQUARE|RECTANGLE|TRIANGLE|OVAL|ARC|POLYGON|SPIRAL|STAR)\s+[0-9]/i.test(codeWithoutComments);
     
     // Check if user has defined their own procedures (TO ... END)
     const hasUserProcedures = /\bTO\s+\w+/i.test(codeToExecute);
     
+    // Normalize commands first (convert "pen up" to "penup", "backward" to "BK", etc.)
+    let codeToConvert = normalizePenCommands(codeToExecute);
+    codeToConvert = normalizeMovementCommands(codeToConvert);
+    
     // Expand user-defined procedures FIRST (before extended commands)
     // This works around the logo package bug where it doesn't execute after procedure definitions
-    let codeToConvert = codeToExecute;
     if (hasUserProcedures) {
-      codeToConvert = expandUserProcedures(codeToExecute);
+      codeToConvert = expandUserProcedures(codeToConvert);
     }
     
     // Then handle extended commands
     if (usesExtendedCommands) {
       codeToConvert = expandExtendedCommands(codeToConvert);
     }
+    
+    // Normalize commands again after expansions (in case expansions introduced them)
+    codeToConvert = normalizePenCommands(codeToConvert);
+    codeToConvert = normalizeMovementCommands(codeToConvert);
     
     // Convert Logo code using the logo package
     return new Promise((resolve) => {
@@ -550,7 +655,8 @@ router.post('/', async (req, res, next) => {
           if (hasUserProcedures || usesExtendedCommands) {
             // For extended commands, try full expansion
             if (usesExtendedCommands) {
-              const fullyExpanded = fullyExpandExtendedCommands(codeToExecute);
+              let fullyExpanded = normalizePenCommands(fullyExpandExtendedCommands(codeToExecute));
+              fullyExpanded = normalizeMovementCommands(fullyExpanded);
               
               logo.convert(fullyExpanded, (err2, logoCommands2) => {
                 if (err2) {
@@ -602,7 +708,8 @@ router.post('/', async (req, res, next) => {
               }
               
               // Reconstruct: procedures first, then execution code
-              const restructuredCode = procedures.join('\n\n') + '\n\n' + executionCode.join('\n');
+              let restructuredCode = normalizePenCommands(procedures.join('\n\n') + '\n\n' + executionCode.join('\n'));
+              restructuredCode = normalizeMovementCommands(restructuredCode);
               
               // Try again with restructured code
               logo.convert(restructuredCode, (err2, logoCommands2) => {
@@ -621,7 +728,8 @@ router.post('/', async (req, res, next) => {
                 
                 if (stillOnlyMarkers) {
                   // Last resort: expand user procedures inline
-                  const expandedWithProcedures = expandUserProcedures(codeToExecute);
+                  let expandedWithProcedures = normalizePenCommands(expandUserProcedures(codeToExecute));
+                  expandedWithProcedures = normalizeMovementCommands(expandedWithProcedures);
                   
                   logo.convert(expandedWithProcedures, (err3, logoCommands3) => {
                     if (err3) {
